@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+.env.local
+*.local
+.DS_Store
+
+# 第三方 AI 工具的本地计划/缓存（含明文密钥，不入库）
+.zcode/
+.zcodeignore
