@@ -112,9 +112,11 @@ jobs:
           set -e
           mkdir -p out
           DATE=$(date +%Y%m%d)
-          cp android/app/build/outputs/apk/debug/app-debug.apk "out/家庭积分本-${DATE}-调试版.apk"
+          # 注意：runner 的 locale 是 C，文件名里的中文会被吞掉（只剩空字符串），
+          # 所以附件名一律用 ASCII，中文只放在 Release 标题和说明里。
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/FamilyPoints-${DATE}-debug.apk"
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
-            cp android/app/build/outputs/apk/release/app-release.apk "out/家庭积分本-${DATE}-正式签名版.apk"
+            cp android/app/build/outputs/apk/release/app-release.apk "out/FamilyPoints-${DATE}-release.apk"
           fi
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             TAG="${GITHUB_REF_NAME}"
