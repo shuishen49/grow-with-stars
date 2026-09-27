@@ -102,3 +102,32 @@ jobs:
         with:
           name: 家庭积分本-release-apk
           path: android/app/build/outputs/apk/release/app-release.apk
+
+      # Artifacts 藏在运行详情页最底下、还会过期，不好找。
+      # 这里再做成 Release，打开仓库首页右边「Releases」就能直接下载。
+      - name: 发布到 Releases 页面
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          mkdir -p out
+          DATE=$(date +%Y%m%d)
+          cp android/app/build/outputs/apk/debug/app-debug.apk "out/家庭积分本-${DATE}-调试版.apk"
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            cp android/app/build/outputs/apk/release/app-release.apk "out/家庭积分本-${DATE}-正式签名版.apk"
+          fi
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            TAG="${GITHUB_REF_NAME}"
+            TITLE="家庭积分本 ${GITHUB_REF_NAME}"
+            PRE=""
+          else
+            TAG="latest"
+            TITLE="家庭积分本 最新调试版"
+            PRE="--prerelease"
+            # latest 是滚动标签：先删掉旧的再建新的（正式 tag 不删）
+            gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
+          fi
+          gh release create "$TAG" $PRE \
+            --title "$TITLE" \
+            --notes "GitHub Actions 自动打包（$(date '+%Y-%m-%d %H:%M') UTC，源码 ${GITHUB_SHA::7}）。调试版可直接安装；未配置 Supabase 密钥时打出来的是「本机模式」，能记账看日历但不能登录云同步。平板建议横屏，且分辨率需达 1100 CSS 像素以上才显示双栏布局。" \
+            out/*.apk
