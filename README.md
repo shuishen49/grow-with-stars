@@ -142,7 +142,11 @@ npm run dev -- --host # 局域网访问，平板连同一 Wi-Fi 后打开终端�
 - **自动**：往 `main` push 一次就出一份调试版 APK；打 tag（`v1.0.0` 之类）也会触发
 - **手动**：Actions 页面 →「打包安卓 APK」→ **Run workflow**
 
-产物在 Actions 运行详情页最下面的 **Artifacts** 里下载（文件名 `家庭积分本-debug-apk`）。
+APK 有两个地方能下：
+
+- **Releases 页面（推荐）**：仓库首页右侧 → **Releases** → `latest`，APK 直接挂在附件里，名字像 `FamilyPoints-20260928-debug.apk`
+- **Artifacts**：Actions 运行详情页最下面（文件名 `家庭积分本-debug-apk`），90 天后会过期
+
 把 APK 传到安卓平板上装就行（首次安装会提示「未知来源」，允许一次即可）。
 
 调试版可以直接装用。想要能上架的正式签名版，再补 4 个密钥即可（缺了会自动跳过这一步）：
