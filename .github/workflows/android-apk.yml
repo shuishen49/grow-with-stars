@@ -26,19 +26,18 @@ jobs:
         run: npm ci
 
       # .env 不入库（里面有密钥），所以 Supabase 地址要在云端临时生成
-      - name: 检查 Supabase 密钥配了吗
-        run: |
-          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ]; then
-            echo "::error::仓库还缺 Actions 密钥 VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY。到 Settings → Secrets and variables → Actions 添加后再重跑。"
-            exit 1
-          fi
-
+      # 没配密钥也能出包，只是打出来的是「本机模式」版本：能用，但不能登录云同步
       - name: 写入 Supabase 配置
         run: |
           cat > .env <<EOF
           VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY=${{ secrets.VITE_SUPABASE_ANON_KEY }}
           EOF
+          if [ -z "${{ secrets.VITE_SUPABASE_URL }}" ] || [ -z "${{ secrets.VITE_SUPABASE_ANON_KEY }}" ]; then
+            echo "::warning::没配 Supabase 密钥，这个包只能用「本机模式」：不登录、不能跨设备同步。想要云同步就去 Settings → Secrets and variables → Actions 加上 VITE_SUPABASE_URL 和 VITE_SUPABASE_ANON_KEY，再跑一次。"
+          else
+            echo "Supabase 密钥已就位，这个包可以登录并云同步。"
+          fi
 
       - name: 构建网页
         run: npm run build

@@ -134,7 +134,8 @@ npm run dev -- --host # 局域网访问，平板连同一 Wi-Fi 后打开终端�
 | `VITE_SUPABASE_URL` | `https://yplgskqifsjtdvdkcnmd.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | `.env` 里 `VITE_SUPABASE_ANON_KEY` 的值（anon / publishable key 本来就是公开的，安全靠 RLS） |
 
-> 没填的话流水线会**故意报错停住**，避免打包出一个连不上云的半成品。
+> 这两个**不填也能出包**，打出来的是「本机模式」：能记账、能看日历，但不能登录云同步。
+> 想让 APK 能登录同步就填上，然后重跑一次流水线。
 
 ### 出包
 
@@ -146,6 +147,17 @@ npm run dev -- --host # 局域网访问，平板连同一 Wi-Fi 后打开终端�
 
 调试版可以直接装用。想要能上架的正式签名版，再补 4 个密钥即可（缺了会自动跳过这一步）：
 `KEYSTORE_BASE64`（`.jks` 文件 base64）、`KEYSTORE_PASSWORD`、`KEY_ALIAS`、`KEY_PASSWORD`。
+
+### 在本机用雷电模拟器验证（比每次真机方便）
+
+1. 装 **雷电模拟器 9**（官网 <https://www.ldmnq.com/>，免费）
+2. **先设成平板分辨率**，否则会显示成窄屏手机布局：
+   设置 → 分辨率 → 选 **平板**（或自定义 2560×1600、320 DPI）
+3. 把 Actions 下载下来的 APK **直接拖进模拟器窗口**即可安装
+
+> ⚠️ 平板双栏布局的断点是 **1100 CSS 像素**，而 CSS 像素 = 物理像素 ÷ (DPI ÷ 160)。
+> 横屏 2560×1600@320dpi → 1280 CSS px，**正常显示双栏**；
+> 竖屏只有 800 CSS px → 收窄成单栏（这是设计如此，768–1099 就该是单栏 + 收窄导航）。
 
 > **iPad 用户注意**：苹果不允许这种打包方式，iOS 必须 Mac + Xcode + 苹果开发者账号（¥688/年）。
 > iPad 上用 Safari 打开网页版 →「添加到主屏幕」，体验和原生 App 几乎一样。
