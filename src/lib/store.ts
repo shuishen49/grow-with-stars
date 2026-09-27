@@ -1,6 +1,14 @@
 import { supabase, useMock } from './supabase'
 import seedData from '../data/seed.json'
 
+/**
+ * 数据来源（三选一）：
+ * - 'cloud' 已登录，读写 Supabase，多设备同步
+ * - 'local' 未登录，读写浏览器本机 localStorage，单机可用
+ * - 'demo'  演示模式，本机 + 内置 9 月示例数据
+ */
+export type SourceMode = 'cloud' | 'local' | 'demo'
+
 export interface LedgerRow {
   id: number
   entry_date: string
@@ -16,7 +24,7 @@ export interface DayEntry {
 }
 
 export interface DataStore {
-  mode: 'supabase' | 'mock'
+  mode: SourceMode
   fetchAll(): Promise<LedgerRow[]>
   /** 保存某日打分记录；entries 为空则删除该日记录 */
   saveDayScore(date: string, entries: DayEntry[]): Promise<void>
@@ -42,11 +50,18 @@ export function parseDetail(detail: string): DayEntry[] {
 }
 
 class SupabaseStore implements DataStore {
-  mode = 'supabase' as const
+  mode = 'cloud' as const
 
   private db() {
     if (!supabase) throw new Error('Supabase 未配置')
     return supabase
+  }
+
+  /** 当前登录用户 id；拿不到就说明会话已失效 */
+  private async uid(): Promise<string> {
+    const { data } = await supabase!.auth.getUser()
+    if (!data.user) throw new Error('登录已失效，请重新登录')
+    return data.user.id
   }
 
   async fetchAll(): Promise<LedgerRow[]> {
@@ -61,24 +76,42 @@ class SupabaseStore implements DataStore {
 
   async saveDayScore(date: string, entries: DayEntry[]): Promise<void> {
     const db = this.db()
+    const user_id = await this.uid()
     if (entries.length === 0) {
-      const { error } = await db.from('ledger').delete().eq('entry_date', date).eq('kind', 'score')
+      const { error } = await db
+        .from('ledger')
+        .delete()
+        .eq('user_id', user_id)
+        .eq('entry_date', date)
+        .eq('kind', 'score')
       if (error) throw new Error(error.message)
       return
     }
     const row = {
+      user_id,
       entry_date: date,
       kind: 'score' as const,
       detail: joinDetail(entries),
       delta: entries.reduce((s, e) => s + e.delta, 0),
     }
-    const { error } = await db.from('ledger').upsert(row, { onConflict: 'entry_date,kind' })
+    const { error } = await db
+      .from('ledger')
+      .upsert(row, { onConflict: 'user_id,entry_date,kind' })
     if (error) throw new Error(error.message)
   }
 
   async addRedemption(date: string, detail: string, points: number): Promise<void> {
-    const row = { entry_date: date, kind: 'redeem' as const, detail: `兑换：${detail}`, delta: -points }
-    const { error } = await this.db().from('ledger').upsert(row, { onConflict: 'entry_date,kind' })
+    const user_id = await this.uid()
+    const row = {
+      user_id,
+      entry_date: date,
+      kind: 'redeem' as const,
+      detail: `兑换：${detail}`,
+      delta: -points,
+    }
+    const { error } = await this.db()
+      .from('ledger')
+      .upsert(row, { onConflict: 'user_id,entry_date,kind' })
     if (error) throw new Error(error.message)
   }
 
@@ -88,9 +121,10 @@ class SupabaseStore implements DataStore {
   }
 }
 
-const LS_KEY = 'tp_mock_ledger'
+const LS_LOCAL = 'tp_local_ledger' // 未登录：本机真实使用
+const LS_DEMO = 'tp_mock_ledger' // 演示模式：内置示例数据
 
-function seedRows(): LedgerRow[] {
+export function seedRows(): LedgerRow[] {
   return (seedData.rows as { date: string; detail: string; delta: number }[]).map((r, i) => ({
     id: i + 1,
     entry_date: r.date,
@@ -101,21 +135,35 @@ function seedRows(): LedgerRow[] {
   }))
 }
 
-class MockStore implements DataStore {
-  mode = 'mock' as const
+/** 浏览器本机存储：未登录时用（起始为空）；演示模式用它并预置示例数据 */
+class LocalStore implements DataStore {
+  mode: SourceMode
+
+  constructor(
+    private key: string,
+    mode: SourceMode,
+    /** 首次使用时是否写入内置示例数据 */
+    private seed = false,
+  ) {
+    this.mode = mode
+  }
 
   private load(): LedgerRow[] {
-    const raw = localStorage.getItem(LS_KEY)
+    const raw = localStorage.getItem(this.key)
     if (!raw) {
-      const rows = seedRows()
-      localStorage.setItem(LS_KEY, JSON.stringify(rows))
+      const rows = this.seed ? seedRows() : []
+      localStorage.setItem(this.key, JSON.stringify(rows))
       return rows
     }
-    return JSON.parse(raw) as LedgerRow[]
+    try {
+      return JSON.parse(raw) as LedgerRow[]
+    } catch {
+      return []
+    }
   }
 
   private save(rows: LedgerRow[]) {
-    localStorage.setItem(LS_KEY, JSON.stringify(rows))
+    localStorage.setItem(this.key, JSON.stringify(rows))
   }
 
   async fetchAll(): Promise<LedgerRow[]> {
@@ -150,10 +198,60 @@ class MockStore implements DataStore {
   async deleteRow(id: number): Promise<void> {
     this.save(this.load().filter((r) => r.id !== id))
   }
+
+  /** 清空本机数据（登录并已上传合并后调用） */
+  clearAll() {
+    this.save([])
+  }
 }
 
-export function getStore(demo: boolean): DataStore {
-  return demo || useMock || !supabase ? new MockStore() : new SupabaseStore()
+/** 未登录也要能用：没有配置 Supabase 时退回本机模式 */
+export function getStore(mode: SourceMode): DataStore {
+  if (mode === 'demo') return new LocalStore(LS_DEMO, 'demo', true)
+  if (mode === 'cloud' && supabase && !useMock) return new SupabaseStore()
+  return new LocalStore(LS_LOCAL, 'local')
+}
+
+/** 读取本机（未登录）已攒下的记录条数，用于登录后询问是否上传 */
+export function countLocalRows(): number {
+  const raw = localStorage.getItem(LS_LOCAL)
+  if (!raw) return 0
+  try {
+    return (JSON.parse(raw) as LedgerRow[]).length
+  } catch {
+    return 0
+  }
+}
+
+/** 登录后把本机记录上传合并到云端；同一天已有记录时以本机为准覆盖 */
+export async function uploadLocalRows(): Promise<number> {
+  if (!supabase) return 0
+  const raw = localStorage.getItem(LS_LOCAL)
+  if (!raw) return 0
+  let rows: LedgerRow[]
+  try {
+    rows = JSON.parse(raw) as LedgerRow[]
+  } catch {
+    return 0
+  }
+  if (rows.length === 0) return 0
+
+  const { data } = await supabase.auth.getUser()
+  if (!data.user) throw new Error('登录已失效，请重新登录')
+  const user_id = data.user.id
+
+  const payload = rows.map((r) => ({
+    user_id,
+    entry_date: r.entry_date,
+    kind: r.kind,
+    detail: r.detail,
+    delta: r.delta,
+  }))
+  const { error, count } = await supabase
+    .from('ledger')
+    .upsert(payload, { onConflict: 'user_id,entry_date,kind', count: 'exact' })
+  if (error) throw new Error(error.message)
+  return count ?? payload.length
 }
 
 export function isMissingTableError(msg: string): boolean {

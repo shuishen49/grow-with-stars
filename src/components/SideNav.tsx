@@ -13,7 +13,7 @@ export default function SideNav({ tab, onChange }: { tab: Tab; onChange: (t: Tab
   return (
     <nav
       aria-label="主导航"
-      className="sticky top-6 flex w-[88px] shrink-0 flex-col gap-2 self-start"
+      className="sticky top-6 flex w-[72px] shrink-0 flex-col gap-2 self-start tb:w-[88px]"
     >
       {NAV.map((n) => {
         const active = tab === n.id

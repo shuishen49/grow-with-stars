@@ -1,8 +1,19 @@
 # 🏅 家庭积分本
 
-适配平板的家庭积分打分工具（Web App），配套「家庭勋章积分规则」：打分、登记表、积分兑换、规则查询四大功能，数据存在 Supabase 云端，全家共用一台平板随时打开。
+适配平板的家庭积分打分工具（Web App），配套「家庭勋章积分规则」：打分、登记表、积分兑换、规则查询四大功能。
 
 > **只做平板**：布局按 1280 横屏 / 834 竖屏（iPad）两档设计，不再针对手机宽度做断点优化。手机上可用但排版以平板为准。
+
+## 登录是可选的
+
+| 状态 | 数据存在哪 | 说明 |
+|---|---|---|
+| **未登录（默认）** | 浏览器本机（localStorage） | 打开就能用，无需任何账号。换设备 / 清缓存数据会丢 |
+| **已登录** | Supabase 云端 | 邮箱 + 6 位数字验证码登录，平板 / 手机 / 电脑多设备同步 |
+| **演示模式** | 本机 + 内置 9 月示例数据 | `?demo=1` 或登录页「先看看演示数据」，用来体验功能 |
+
+一个家庭共用一个邮箱即可。不注册也能登录——输入邮箱发验证码时会自动创建账号。
+登录后如果本机已有记录，会询问是否「一键上传合并」到云端。
 
 ## 功能
 
@@ -12,7 +23,7 @@
   - 点任意一天弹窗看逐条明细、加分/扣分小计、当日结束后剩余积分，并可「✏️ 修改这天」跳回打分页
   - 表格视图为原来的月度登记表（日期 / 星期 / 积分增减 / 增减明细 / 兑换记录 / 剩余积分），点任意一行同样可跳回打分页修改
 - **🎁 兑换**：20/50/100/200/300/500/1000 积分七档兑换，自动执行「一周最多兑换一次」规则；积分不足自动禁用；兑换历史可撤销（积分退回）
-- **📖 规则**：完整奖惩规则表 + 兑换表随时查看
+- **📖 规则**：四大类奖惩规则 + 兑换表，手风琴式可逐类展开/收起（也可一键全部展开/收起）
 
 技术栈：Vite + React + TypeScript + Tailwind CSS + Supabase。支持 PWA，iPad 上可「添加到主屏幕」像 App 一样全屏使用。
 
@@ -36,23 +47,46 @@
 > 小号文字用 `posdeep` / `negdeep`（≥4.5:1 对比度），大号数字用 `pos` / `neg`。
 > 素材图在 `public/ui/`（勋章、四类图标、吉祥物、导航图标、统计图标），导航激活态是紫色渐变 `from-[#9274FF] to-brand-dark` + 白字。
 
-无障碍：可见焦点环 3px（`:focus-visible`）、折叠面板 `aria-expanded`、视图切换 `aria-pressed`、导航 `aria-current`、触摸目标 ≥44px、`prefers-reduced-motion` 降级。
+**响应式断点**（`tailwind.config.js` 里自定义了 `tb: 1100px`）：
 
-## 首次使用（3 步）
+| 宽度 | 布局 |
+|---|---|
+| ≥1100（`tb:`） | 左右双栏：主内容 + 右侧 300px 面板；侧边导航 88px |
+| 768–1099 | 单栏，右侧面板移到内容下方；侧边导航收窄到 72px（打分页的「今日已选」保留） |
+
+> 素材包原建议 `<768` 切底部导航，本项目按「只做平板」处理，手机宽度不再单独优化。
+
+无障碍：可见焦点环 3px（`:focus-visible`）、折叠面板 `aria-expanded`、视图切换 `aria-selected`、导航 `aria-current`、触摸目标 ≥44px、`prefers-reduced-motion` 降级。
+
+## 首次使用
+
+### 0. 只想单机用？跳过这一步
+
+不配置 Supabase 也能跑：打开就是「未登录 · 仅本机」模式，数据存在浏览器里，功能一个不少。
 
 ### 1. 初始化数据库（只需一次）
 
 打开 [supabase.com/dashboard](https://supabase.com/dashboard) 进入你的项目 → 左侧 **SQL Editor** → **New query** → 粘贴 [`supabase/setup.sql`](supabase/setup.sql) 的全部内容 → **Run**。
 
-这一步会建表、开读写权限，并导入 2026 年 9 月的纸质登记表历史数据（22 天，期末余额 70 分）。
+这一步会建表（带 `user_id` + 「只能读写自己的行」的 RLS 策略），并导入 2026 年 9 月的纸质登记表历史数据（22 天，期末余额 70 分）。
 
-> 项目已内置引导：如果数据库没初始化，网页打开后会自动显示这个 SQL 和复制按钮，照着做即可。
+**已经建过旧版库的**，改跑 [`supabase/auth-migration.sql`](supabase/auth-migration.sql) 升级；也可以用脚本：
+```bash
+node --env-file=.env.local scripts/apply-auth-migration.mjs
+```
 
 ### 2. 配置环境变量
 
 `.env` 已按你提供的 Supabase 信息配置好（`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`，也兼容 `NEXT_PUBLIC_*` 写法）。换库时改这两个值即可。
 
-### 3. 运行
+### 3. 打开邮箱验证（可选，建议关掉）
+
+Supabase 控制台 → **Authentication** → **Sign In / Providers** → **Email** → 关掉 **Confirm email**。
+关掉后验证码登录更顺畅（不用先点邮件里的确认链接）。
+
+> 嫌发邮件慢/不稳定：这是免费的 Supabase 内置邮件，每小时有封数上限，家庭自用足够。
+
+### 4. 运行
 
 ```bash
 npm install
@@ -73,40 +107,59 @@ npm run build   # 产物在 dist/
 - **腾讯云开发 CloudBase**：控制台 → 静态网站托管 → 上传 `dist` 目录（你提供的 AI 网关地址与令牌已记录在 `.env.example`，当前版本未使用，如需「AI 生成周评/鼓励语」等功能可后续接入）
 - Vercel / Netlify：导入仓库自动构建即可
 
+## 把已有的历史数据认领到自己账号
+
+`setup.sql` 导入的 9 月历史数据 `user_id` 是空的（不属于任何账号）。先在网页上用你的邮箱登录一次，然后在本机运行：
+
+```bash
+node --env-file=.env.local scripts/claim-rows.mjs 你的邮箱
+```
+
+脚本会把这些空记录归到你的账号下（同一天你已自己录过数据的会跳过，不会覆盖）。
+
 ## 演示模式
 
-不连数据库也能体验完整功能（数据保存在本机浏览器）：
+不连数据库也能体验完整功能（带 9 月示例数据，保存在本机浏览器）：
 
-- 首次打开如果数据库未初始化，点「🎈 先体验演示模式」
+- 登录页点「🎈 先看看演示数据」
 - 或访问任意地址加 `?demo=1` 参数
-- 页面顶部会显示「演示模式」，点击可退出
+- 页面顶部会显示「演示数据」，点击可退出
 
 ## 数据说明
 
-- 表 `ledger`：`entry_date`（日期）、`kind`（score 打分 / redeem 兑换）、`detail`（明细文本）、`delta`（当日增减），每天最多一条打分 + 一条兑换记录
+- 表 `ledger`：`user_id`（归属账号）、`entry_date`（日期）、`kind`（score 打分 / redeem 兑换）、`detail`（明细文本）、`delta`（当日增减），每个账号每天最多一条打分 + 一条兑换记录
+- RLS 策略 `own_rows`：**未登录不能读写数据库**，登录后只能读写 `user_id = 自己的` 的行
 - 剩余积分 = 全部记录 `delta` 累加，兑换后剩余积分自动累积到下周
 - **9 月 9 日注**：纸质表明细合计为 +2，但当日增减与余额均按 +3 计算（17→20），本工具按纸质表数字录入，保持期末余额 70 一致
 - 修改规则/兑换档位：编辑 `src/data/rules.ts`；修改历史种子数据：编辑 `src/data/seed.json` 后运行 `npm run gen:sql` 重新生成 `supabase/setup.sql`
 
-## 安全提示
+## 安全说明
 
-家庭工具为省去注册登录，数据库对持有链接的人开放读写（Supabase anon key 本身就是公开的）。不要把网页地址公开传播；如需限制，后续可给 Supabase 加邮箱登录（Auth）。
+- 数据库**不再对匿名访问开放**：RLS 策略 `own_rows` 只放行 `authenticated` 且 `user_id = 自己的` 行。未登录时前端根本不连数据库（走本机存储）。
+- anon key 本身是公开的，但配合上面的 RLS，拿到 key 也读不到任何人的数据。
+- 邮箱验证码登录由 Supabase Auth 托管，密码/会话不由本项目保管。
 
 ## 目录结构
 
 ```
-├─ supabase/setup.sql      # 数据库初始化脚本（含 9 月历史数据）
+├─ supabase/setup.sql          # 数据库初始化脚本（新结构，含 9 月历史数据）
+├─ supabase/auth-migration.sql # 旧库升级：加 user_id + 收紧 RLS
 ├─ src/
-│  ├─ data/rules.ts        # 奖惩规则、常用速记、兑换档位（改规则改这里）
-│  ├─ data/seed.json       # 9 月历史种子数据
-│  ├─ lib/store.ts         # 数据层（Supabase / 本地演示双模式）
-│  ├─ lib/dates.ts         # 日期工具（周一定义一周）
+│  ├─ data/rules.ts            # 奖惩规则、常用速记、兑换档位（改规则改这里）
+│  ├─ data/seed.json           # 9 月历史种子数据
+│  ├─ lib/auth.ts              # 邮箱验证码登录、会话监听、报错中文化
+│  ├─ lib/store.ts             # 数据层（云端 / 本机 / 演示 三模式）
+│  ├─ lib/dates.ts             # 日期工具（周一定义一周）
 │  └─ components/
-│     ├─ SideNav.tsx       # 左侧 88px 侧边导航（打分/记录/兑换/规则）
-│     ├─ AppHeader.tsx     # 顶部标题栏（勋章 + 口号 + 余额 + 刷新）
-│     ├─ CalendarView.tsx  # 记录页日历视图（月历格子 + 月战绩 + 当日详情弹窗）
-│     └─ …                 # 打分、记录、兑换、规则、弹窗、引导页等组件
-├─ public/ui/              # 平板 UI 素材包图标（PNG）
-├─ scripts/gen-icons.mjs   # 生成 PWA 图标
-└─ scripts/gen-sql.mjs     # 由 seed.json 生成 setup.sql
+│     ├─ AuthPage.tsx          # 登录页（邮箱 + 6 位验证码，可跳过）
+│     ├─ SideNav.tsx           # 左侧侧边导航（打分/记录/兑换/规则）
+│     ├─ AppHeader.tsx         # 顶部标题栏（状态标签 + 登录/退出 + 余额）
+│     ├─ CalendarView.tsx      # 记录页日历视图（月历格子 + 月战绩 + 当日详情弹窗）
+│     └─ …                     # 打分、记录、兑换、规则、弹窗、引导页等组件
+├─ public/ui/                  # 平板 UI 素材包图标（PNG）
+├─ scripts/apply-sql.mjs       # 直连执行 setup.sql
+├─ scripts/apply-auth-migration.mjs  # 直连执行 auth-migration.sql
+├─ scripts/claim-rows.mjs      # 认领历史数据到指定邮箱账号
+├─ scripts/gen-icons.mjs       # 生成 PWA 图标
+└─ scripts/gen-sql.mjs         # 由 seed.json 生成 setup.sql
 ```

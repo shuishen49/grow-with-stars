@@ -1,19 +1,51 @@
+import type { SourceMode } from '../lib/store'
+
 interface Props {
   balance: number
   demo: boolean
+  mode: SourceMode
+  email?: string
+  authEnabled: boolean
   refreshing: boolean
   onRefresh: () => void
   onExitDemo: () => void
+  onLogin: () => void
+  onLogout: () => void
 }
 
-/** 平板顶栏：勋章 + 标题口号 + 星星吉祥物装饰 + 当前积分徽章 */
-export default function AppHeader({ balance, demo, refreshing, onRefresh, onExitDemo }: Props) {
+const MODE_TAG: Record<SourceMode, { text: string; cls: string }> = {
+  cloud: { text: '已登录 · 云端同步', cls: 'bg-brand-soft text-brand' },
+  local: { text: '未登录 · 仅本机', cls: 'bg-canvas text-mut' },
+  demo: { text: '演示数据', cls: 'bg-peach text-golddeep' },
+}
+
+/** 平板顶栏：勋章 + 标题口号 + 吉祥物装饰 + 当前积分徽章 + 登录/退出 */
+export default function AppHeader({
+  balance,
+  demo,
+  mode,
+  email,
+  authEnabled,
+  refreshing,
+  onRefresh,
+  onExitDemo,
+  onLogin,
+  onLogout,
+}: Props) {
+  const tag = MODE_TAG[mode]
+
   return (
-    <header className="relative mb-5 flex items-center gap-3 pr-2">
-      <img src="/ui/brand-medal.png" alt="" aria-hidden className="h-10 w-10 object-contain" />
+    <header className="relative mb-5 flex min-h-[72px] items-center gap-3 pr-2">
+      <img src="/ui/brand-medal.png" alt="" aria-hidden className="h-9 w-9 object-contain" />
       <div className="min-w-0">
-        <h1 className="text-2xl font-extrabold leading-tight text-ink">家庭积分本</h1>
+        <div className="flex items-center gap-2">
+          <h1 className="text-2xl font-extrabold leading-tight text-ink">家庭积分本</h1>
+          <span className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${tag.cls}`}>
+            {tag.text}
+          </span>
+        </div>
         <p className="text-sm font-medium text-golddeep">好习惯 · 好学习 · 每天进步一点点！</p>
+        {email && <p className="truncate text-xs text-mut">{email}</p>}
         {demo && (
           <button
             onClick={onExitDemo}
@@ -29,7 +61,7 @@ export default function AppHeader({ balance, demo, refreshing, onRefresh, onExit
         src="/ui/mascot-books.png"
         alt=""
         aria-hidden
-        className="pointer-events-none absolute -top-7 right-36 hidden h-24 select-none lg:block"
+        className="pointer-events-none absolute -top-7 right-36 hidden h-24 select-none tb:block"
       />
 
       <div className="ml-auto flex items-center gap-3">
@@ -43,6 +75,24 @@ export default function AppHeader({ balance, demo, refreshing, onRefresh, onExit
         >
           🔄
         </button>
+
+        {authEnabled &&
+          (mode === 'cloud' ? (
+            <button
+              onClick={onLogout}
+              className="tap flex h-11 items-center whitespace-nowrap rounded-ctl border border-line bg-white px-3.5 text-sm font-medium text-mut shadow-card hover:text-ink"
+            >
+              退出登录
+            </button>
+          ) : (
+            <button
+              onClick={onLogin}
+              className="tap flex h-11 items-center gap-1.5 whitespace-nowrap rounded-ctl border border-brand bg-brand-soft px-3.5 text-sm font-bold text-brand shadow-card"
+            >
+              🔑 登录同步
+            </button>
+          ))}
+
         <div className="flex items-center gap-2.5 rounded-card border border-line bg-white px-4 py-2 shadow-card">
           <img src="/ui/nav-score.png" alt="" aria-hidden className="h-8 w-8 object-contain" />
           <div className="text-right">

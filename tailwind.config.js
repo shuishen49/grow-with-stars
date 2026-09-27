@@ -7,6 +7,10 @@ export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
+      // 平板断点：≥1100 走左右双栏（素材包建议布局），768–1099 单栏 + 收窄导航
+      screens: {
+        tb: '1100px',
+      },
       colors: {
         canvas: '#F8F6F0', // 奶油白画布
         ink: '#202B49', // 正文近黑（带一点蓝）

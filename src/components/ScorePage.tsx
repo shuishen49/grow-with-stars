@@ -199,7 +199,7 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear 
   }
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid items-start gap-5 tb:grid-cols-[minmax(0,1fr)_300px]">
       {/* ============ 左栏：日期导航 + 项目网格 ============ */}
       <div className="min-w-0 space-y-4">
         {/* 日期导航 */}
@@ -337,7 +337,7 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear 
       </div>
 
       {/* ============ 右栏：今日已选摘要（SelectionPanel） ============ */}
-      <aside className="sticky top-5 lg:w-[300px]">
+      <aside className="tb:sticky tb:top-5 tb:w-[300px]">
         <div className="card relative overflow-hidden p-5">
           <div className="flex items-center justify-between">
             <h2 className="font-bold">

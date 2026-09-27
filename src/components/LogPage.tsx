@@ -76,31 +76,31 @@ function StatsRow({
 }) {
   const items = [
     {
-      icon: '/ui/nav-redeem.png',
+      icon: '/ui/stat-coins.png',
       value: fmtDelta(stats.gain),
       label: '本月奖励',
-      cls: 'bg-rosy text-pos',
+      cls: 'text-pos',
       bg: 'bg-rosy',
     },
     {
       icon: '/ui/stat-deduction.png',
       value: `${stats.loss}`,
       label: '本月扣分',
-      cls: 'bg-mint text-neg',
+      cls: 'text-neg',
       bg: 'bg-mint',
     },
     {
-      icon: '/ui/stat-coins.png',
+      icon: '/ui/mascot-gift.png',
       value: `${stats.redeem}`,
       label: '本月兑换',
-      cls: 'bg-peach text-golddeep',
+      cls: 'text-golddeep',
       bg: 'bg-peach',
     },
     {
       icon: '/ui/stat-balance.png',
       value: stats.monthEnd ?? '—',
       label: '月末结余',
-      cls: 'bg-brand-soft text-brand',
+      cls: 'text-brand',
       bg: 'bg-brand-soft',
     },
   ]
@@ -202,9 +202,9 @@ export default function LogPage({ rows, onPickDate }: Props) {
       </div>
       <div className="space-y-1">
         {[
-          { icon: '/ui/nav-redeem.png', v: fmtDelta(monthStats.gain), l: '本月奖励', cls: 'text-pos' },
+          { icon: '/ui/stat-coins.png', v: fmtDelta(monthStats.gain), l: '本月奖励', cls: 'text-pos' },
           { icon: '/ui/stat-deduction.png', v: `${monthStats.loss}`, l: '本月扣分', cls: 'text-neg' },
-          { icon: '/ui/stat-coins.png', v: `${monthStats.redeem}`, l: '本月兑换', cls: 'text-golddeep' },
+          { icon: '/ui/mascot-gift.png', v: `${monthStats.redeem}`, l: '本月兑换', cls: 'text-golddeep' },
           {
             icon: '/ui/stat-balance.png',
             v: monthStats.monthEnd !== undefined ? `${monthStats.monthEnd}` : '—',
@@ -259,13 +259,13 @@ export default function LogPage({ rows, onPickDate }: Props) {
     <div>
       {view === 'calendar' ? (
         /* 日历视图：左月历 + 右战绩双栏 */
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+        <div className="grid items-start gap-5 tb:grid-cols-[minmax(0,1fr)_300px]">
           <div className="min-w-0 space-y-4">
             <MonthNav mk={mk} setMk={setMk} />
             <StatsRow stats={monthStats} />
             <CalendarView mk={mk} rows={rows} closingAt={closingAt} onPickDate={onPickDate} />
           </div>
-          <aside className="space-y-4 lg:sticky lg:top-5 lg:w-[300px]">
+          <aside className="space-y-4 tb:sticky tb:top-5 tb:w-[300px]">
             <ViewToggle view={view} setView={setView} />
             {MonthStatsCard}
           </aside>
@@ -321,7 +321,7 @@ export default function LogPage({ rows, onPickDate }: Props) {
                             <span className="text-line">—</span>
                           )}
                         </td>
-                        <td className="px-3 py-3 text-slate-600 [overflow-wrap:anywhere]">
+                        <td className="px-3 py-3 text-ink/70 [overflow-wrap:anywhere]">
                           {s?.detail ?? <span className="text-line">—</span>}
                         </td>
                         <td className="px-3 py-3 text-golddeep [overflow-wrap:anywhere]">

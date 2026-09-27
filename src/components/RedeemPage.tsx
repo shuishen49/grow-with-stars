@@ -48,7 +48,7 @@ export default function RedeemPage({ rows, balance, onRedeem, onUndo }: Props) {
   }
 
   return (
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
+    <div className="grid items-start gap-5 tb:grid-cols-[minmax(0,1fr)_300px]">
       {/* ============ 左栏：余额 + 档位 + 历史 ============ */}
       <div className="min-w-0 space-y-4">
         {/* 余额卡片 */}
@@ -62,7 +62,7 @@ export default function RedeemPage({ rows, balance, onRedeem, onUndo }: Props) {
           <div className="text-sm text-mut">当前可用积分</div>
           <div className="mt-1 flex items-center gap-3">
             <img src="/ui/nav-score.png" alt="" aria-hidden className="h-10 w-10 object-contain" />
-            <span className="text-[44px] font-extrabold leading-none tabular-nums text-brand">
+            <span className="text-[40px] font-extrabold leading-none tabular-nums text-brand">
               {balance}
             </span>
           </div>
@@ -145,7 +145,7 @@ export default function RedeemPage({ rows, balance, onRedeem, onUndo }: Props) {
       </div>
 
       {/* ============ 右栏：兑换小贴士 ============ */}
-      <aside className="hidden lg:sticky lg:top-5 lg:block lg:w-[300px]">
+      <aside className="hidden tb:sticky tb:top-5 tb:block tb:w-[300px]">
         <div className="card relative overflow-hidden p-5 text-center">
           <img
             src="/ui/nav-redeem.png"

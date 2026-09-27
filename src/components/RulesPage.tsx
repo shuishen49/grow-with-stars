@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { CATEGORIES, REDEEM_RULE_TEXT, REDEEM_TIERS } from '../data/rules'
 
 /** 分类 id → 素材包图标（与打分页一致） */
@@ -8,67 +9,130 @@ const CAT_ICON: Record<string, string> = {
   character: '/ui/category-character.png',
 }
 
+/**
+ * 规则手风琴（RuleAccordion）
+ * 展开/折叠只影响显示，不改变任何规则与分值；默认全部展开（规则页的目的就是查规则）。
+ */
 export default function RulesPage() {
-  return (
-    <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_300px]">
-      <div className="min-w-0 space-y-4">
-        {CATEGORIES.map((cat) => (
-          <section key={cat.id} className="card p-5">
-            <div className="mb-4 flex items-center gap-2.5">
-              <img src={CAT_ICON[cat.id]} alt="" aria-hidden className="h-7 w-7 object-contain" />
-              <h2 className="text-lg font-bold">{cat.name}</h2>
-            </div>
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-              <div>
-                <div className="mb-2 text-xs font-bold text-posdeep">奖 励</div>
-                <div className="space-y-1.5">
-                  {cat.rewards.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="min-w-0 text-ink/85">{it.name}</span>
-                      <span className="shrink-0 rounded-full bg-rosy px-2.5 py-0.5 text-xs font-bold tabular-nums text-posdeep">
-                        +{it.points}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div>
-                <div className="mb-2 text-xs font-bold text-negdeep">惩 罚</div>
-                <div className="space-y-1.5">
-                  {cat.penalties.map((it) => (
-                    <div key={it.id} className="flex items-center justify-between gap-2 text-sm">
-                      <span className="min-w-0 text-ink/85">{it.name}</span>
-                      <span className="shrink-0 rounded-full bg-mint px-2.5 py-0.5 text-xs font-bold tabular-nums text-negdeep">
-                        -{it.points}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </section>
-        ))}
+  const [open, setOpen] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(CATEGORIES.map((c) => [c.id, true])),
+  )
+  const [openTiers, setOpenTiers] = useState(true)
 
-        <section className="card p-5">
-          <div className="mb-3 flex items-center gap-2 font-bold">🎁 积分兑换表</div>
-          <div className="space-y-2">
-            {REDEEM_TIERS.map((t) => (
-              <div key={t.points} className="flex gap-3 rounded-ctl bg-canvas px-3.5 py-2.5">
-                <div className="w-16 shrink-0 text-base font-extrabold tabular-nums text-brand">
-                  {t.points}分
+  const toggle = (id: string) => setOpen((p) => ({ ...p, [id]: !p[id] }))
+  const allOpen = CATEGORIES.every((c) => open[c.id])
+
+  return (
+    <div className="grid items-start gap-5 tb:grid-cols-[minmax(0,1fr)_300px]">
+      <div className="min-w-0 space-y-4">
+        {/* 一键展开/收起 */}
+        <div className="flex items-center justify-between px-1">
+          <span className="text-sm text-mut">共 {CATEGORIES.length} 类规则</span>
+          <button
+            onClick={() => setOpen(Object.fromEntries(CATEGORIES.map((c) => [c.id, !allOpen])))}
+            className="tap flex min-h-[44px] items-center gap-1.5 rounded-ctl px-3 text-sm font-bold text-brand hover:bg-brand-soft"
+          >
+            <span aria-hidden>{allOpen ? '▴' : '▾'}</span>
+            {allOpen ? '全部收起' : '全部展开'}
+          </button>
+        </div>
+
+        {CATEGORIES.map((cat) => {
+          const isOpen = !!open[cat.id]
+          return (
+            <section key={cat.id} className="card overflow-hidden">
+              <button
+                onClick={() => toggle(cat.id)}
+                aria-expanded={isOpen}
+                className="tap flex min-h-[56px] w-full items-center gap-3 px-5 py-3 text-left"
+              >
+                <img src={CAT_ICON[cat.id]} alt="" aria-hidden className="h-7 w-7 object-contain" />
+                <span className="flex-1 text-lg font-bold">{cat.name}</span>
+                <span className="rounded-full bg-canvas px-2.5 py-0.5 text-xs text-mut">
+                  奖 {cat.rewards.length} · 罚 {cat.penalties.length}
+                </span>
+                <span
+                  aria-hidden
+                  className={`text-mut transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
+                >
+                  ▾
+                </span>
+              </button>
+
+              {isOpen && (
+                <div className="grid grid-cols-1 gap-6 border-t border-line px-5 py-4 md:grid-cols-2">
+                  <div>
+                    <div className="mb-2 text-xs font-bold text-posdeep">奖 励</div>
+                    <div className="space-y-1.5">
+                      {cat.rewards.map((it) => (
+                        <div key={it.id} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="min-w-0 text-ink/85">{it.name}</span>
+                          <span className="shrink-0 rounded-full bg-rosy px-2.5 py-0.5 text-xs font-bold tabular-nums text-posdeep">
+                            +{it.points}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-2 text-xs font-bold text-negdeep">惩 罚</div>
+                    <div className="space-y-1.5">
+                      {cat.penalties.map((it) => (
+                        <div key={it.id} className="flex items-center justify-between gap-2 text-sm">
+                          <span className="min-w-0 text-ink/85">{it.name}</span>
+                          <span className="shrink-0 rounded-full bg-mint px-2.5 py-0.5 text-xs font-bold tabular-nums text-negdeep">
+                            -{it.points}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="min-w-0 text-sm leading-6 text-ink/75">{t.options.join('、')}</div>
+              )}
+            </section>
+          )
+        })}
+
+        <section className="card overflow-hidden">
+          <button
+            onClick={() => setOpenTiers((v) => !v)}
+            aria-expanded={openTiers}
+            className="tap flex min-h-[56px] w-full items-center gap-3 px-5 py-3 text-left"
+          >
+            <img src="/ui/mascot-gift.png" alt="" aria-hidden className="h-7 w-7 object-contain" />
+            <span className="flex-1 text-lg font-bold">🎁 积分兑换表</span>
+            <span className="rounded-full bg-peach px-2.5 py-0.5 text-xs text-golddeep">
+              {REDEEM_TIERS.length} 档
+            </span>
+            <span
+              aria-hidden
+              className={`text-mut transition-transform duration-200 ${openTiers ? 'rotate-180' : ''}`}
+            >
+              ▾
+            </span>
+          </button>
+          {openTiers && (
+            <div className="border-t border-line px-5 py-4">
+              <div className="space-y-2">
+                {REDEEM_TIERS.map((t) => (
+                  <div key={t.points} className="flex gap-3 rounded-ctl bg-canvas px-3.5 py-2.5">
+                    <div className="w-16 shrink-0 text-base font-extrabold tabular-nums text-brand">
+                      {t.points}分
+                    </div>
+                    <div className="min-w-0 text-sm leading-6 text-ink/75">{t.options.join('、')}</div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          <div className="mt-3 rounded-ctl bg-peach px-4 py-2.5 text-xs text-golddeep">
-            📌 {REDEEM_RULE_TEXT}
-          </div>
+              <div className="mt-3 rounded-ctl bg-peach px-4 py-2.5 text-xs text-golddeep">
+                📌 {REDEEM_RULE_TEXT}
+              </div>
+            </div>
+          )}
         </section>
       </div>
 
       {/* 右栏：阅读星星装饰 + 小结 */}
-      <aside className="hidden lg:sticky lg:top-5 lg:block lg:w-[300px]">
+      <aside className="hidden tb:sticky tb:top-5 tb:block tb:w-[300px]">
         <div className="card relative overflow-hidden p-5 text-center">
           <img
             src="/ui/mascot-reading.png"
