@@ -9,3 +9,13 @@ dist/
 .zcode/
 .zcodeignore
 vite.config.ts.timestamp-*
+
+# 安卓工程：只保留自己改过的部分，构建产物和签名不入库
+android/.gradle/
+android/build/
+android/app/build/
+android/app/release/
+android/local.properties
+android/.idea/
+*.jks
+*.keystore

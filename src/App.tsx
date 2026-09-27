@@ -113,6 +113,19 @@ export default function App() {
     setShowAuth(false)
   }
 
+  /**
+   * 顶栏「登录同步」。
+   * 演示模式下必须先退出演示：否则 mode 恒为 'demo'，登录页不会显示，
+   * 就算登录成功了也还是用演示数据（demo 优先级高于 session）。
+   */
+  const handleLoginClick = () => {
+    if (demo) {
+      localStorage.removeItem('tp_demo')
+      setDemo(false)
+    }
+    setShowAuth(true)
+  }
+
   const exitDemo = () => {
     localStorage.removeItem('tp_demo')
     setDemo(false)
@@ -228,7 +241,7 @@ export default function App() {
             refreshing={refreshing}
             onRefresh={refresh}
             onExitDemo={exitDemo}
-            onLogin={() => setShowAuth(true)}
+            onLogin={handleLoginClick}
             onLogout={handleLogout}
           />
 
@@ -244,7 +257,7 @@ export default function App() {
                 加载中…
               </div>
             </div>
-          ) : showAuth && !demo ? (
+          ) : showAuth ? (
             <AuthPage
               onSignedIn={() => setShowAuth(false)}
               onStayLocal={() => setShowAuth(false)}

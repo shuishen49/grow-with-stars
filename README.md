@@ -9,10 +9,11 @@
 | 状态 | 数据存在哪 | 说明 |
 |---|---|---|
 | **未登录（默认）** | 浏览器本机（localStorage） | 打开就能用，无需任何账号。换设备 / 清缓存数据会丢 |
-| **已登录** | Supabase 云端 | 邮箱 + 6 位数字验证码登录，平板 / 手机 / 电脑多设备同步 |
+| **已登录** | Supabase 云端 | 邮箱 + 密码登录，平板 / 手机 / 电脑多设备同步 |
 | **演示模式** | 本机 + 内置 9 月示例数据 | `?demo=1` 或登录页「先看看演示数据」，用来体验功能 |
 
-一个家庭共用一个邮箱即可。不注册也能登录——输入邮箱发验证码时会自动创建账号。
+一个家庭共用**一个邮箱 + 一个密码**即可，全程不发邮件、不用验证码。
+第一次用选「注册」，密码填两次；之后选「登录」。
 登录后如果本机已有记录，会询问是否「一键上传合并」到云端。
 
 ## 功能
@@ -79,12 +80,34 @@ node --env-file=.env.local scripts/apply-auth-migration.mjs
 
 `.env` 已按你提供的 Supabase 信息配置好（`VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`，也兼容 `NEXT_PUBLIC_*` 写法）。换库时改这两个值即可。
 
-### 3. 打开邮箱验证（可选，建议关掉）
+### 3. 关掉邮箱确认（只需一步，不用配 SMTP）
 
-Supabase 控制台 → **Authentication** → **Sign In / Providers** → **Email** → 关掉 **Confirm email**。
-关掉后验证码登录更顺畅（不用先点邮件里的确认链接）。
+本项目用**邮箱 + 密码**登录，全程不发邮件。唯一需要动的开关：
 
-> 嫌发邮件慢/不稳定：这是免费的 Supabase 内置邮件，每小时有封数上限，家庭自用足够。
+Supabase 控制台（本项目：https://supabase.com/dashboard/project/yplgskqifsjtdvdkcnmd ）
+→ **Authentication → Sign In / Providers → Email**
+→ 把 **Confirm email** **关掉** → Save
+→ 顺手确认 **Allow new users to sign up** 是**开**着的。
+
+> 这个开关不关的话，注册完会要求先点邮件链接确认，你收不到/不想收就永远登不进去。
+> 关掉之后：注册 = 当场登录，一封邮件都不发。
+
+**不用**配 SMTP、**不用**改邮件模板。
+（之前给邮件验证码准备的 [`supabase/email-magic-link-otp.html`](supabase/email-magic-link-otp.html)
+留着备用，现在用不上。）
+
+#### 邮箱已经被注册过？
+
+```bash
+node --env-file=.env.local scripts/db-status.mjs                        # 体检：表/列/RLS/用户/数据都够不够
+node --env-file=.env.local scripts/check-users.mjs                      # 看看有哪些用户、是否已确认、有没有设密码
+node --env-file=.env.local scripts/delete-user.mjs 你的邮箱 --yes        # 删掉某个账号重新注册
+node --env-file=.env.local scripts/import-ledger.mjs 你的邮箱 --yes      # 导入纸质积分表（会先校验明细，可先不加 --yes 预览）
+```
+
+删账号会连带删掉它在 `ledger` 里的数据行（on delete cascade）。
+- **粘贴链接登录**：登录页第二屏底部有「邮件里是『链接』不是 6 位数字？点这里粘贴链接登录」，
+  把邮件按钮的完整链接地址粘进去同样能登录成功。
 
 ### 4. 运行
 
@@ -95,6 +118,37 @@ npm run dev -- --host # 局域网访问，平板连同一 Wi-Fi 后打开终端�
 ```
 
 平板上用 Safari/Chrome 打开该地址 → 分享 → 「添加到主屏幕」，即可像 App 一样使用。
+
+## 打包成安卓 APK（不用装 Android Studio）
+
+项目已经套了 **Capacitor**，安卓 APK 由 **GitHub Actions 在云端编译**，本机一个安卓 SDK 都不用装。
+
+### 只需做一次：填两个密钥
+
+`.env` 不入库，所以要在 GitHub 上告诉 Actions 你的 Supabase 地址：
+
+仓库页面 → **Settings → Secrets and variables → Actions → New repository secret**，加两条：
+
+| Name | Secret |
+|---|---|
+| `VITE_SUPABASE_URL` | `https://yplgskqifsjtdvdkcnmd.supabase.co` |
+| `VITE_SUPABASE_ANON_KEY` | `.env` 里 `VITE_SUPABASE_ANON_KEY` 的值（anon / publishable key 本来就是公开的，安全靠 RLS） |
+
+> 没填的话流水线会**故意报错停住**，避免打包出一个连不上云的半成品。
+
+### 出包
+
+- **自动**：往 `main` push 一次就出一份调试版 APK；打 tag（`v1.0.0` 之类）也会触发
+- **手动**：Actions 页面 →「打包安卓 APK」→ **Run workflow**
+
+产物在 Actions 运行详情页最下面的 **Artifacts** 里下载（文件名 `家庭积分本-debug-apk`）。
+把 APK 传到安卓平板上装就行（首次安装会提示「未知来源」，允许一次即可）。
+
+调试版可以直接装用。想要能上架的正式签名版，再补 4 个密钥即可（缺了会自动跳过这一步）：
+`KEYSTORE_BASE64`（`.jks` 文件 base64）、`KEYSTORE_PASSWORD`、`KEY_ALIAS`、`KEY_PASSWORD`。
+
+> **iPad 用户注意**：苹果不允许这种打包方式，iOS 必须 Mac + Xcode + 苹果开发者账号（¥688/年）。
+> iPad 上用 Safari 打开网页版 →「添加到主屏幕」，体验和原生 App 几乎一样。
 
 ## 部署到公网（可选）
 
@@ -137,7 +191,7 @@ node --env-file=.env.local scripts/claim-rows.mjs 你的邮箱
 
 - 数据库**不再对匿名访问开放**：RLS 策略 `own_rows` 只放行 `authenticated` 且 `user_id = 自己的` 行。未登录时前端根本不连数据库（走本机存储）。
 - anon key 本身是公开的，但配合上面的 RLS，拿到 key 也读不到任何人的数据。
-- 邮箱验证码登录由 Supabase Auth 托管，密码/会话不由本项目保管。
+- 邮箱 + 密码登录由 Supabase Auth 托管，密码不落本项目，会话由 supabase-js 保管。
 
 ## 目录结构
 
@@ -147,11 +201,11 @@ node --env-file=.env.local scripts/claim-rows.mjs 你的邮箱
 ├─ src/
 │  ├─ data/rules.ts            # 奖惩规则、常用速记、兑换档位（改规则改这里）
 │  ├─ data/seed.json           # 9 月历史种子数据
-│  ├─ lib/auth.ts              # 邮箱验证码登录、会话监听、报错中文化
+│  ├─ lib/auth.ts              # 邮箱密码注册/登录、会话监听、报错中文化
 │  ├─ lib/store.ts             # 数据层（云端 / 本机 / 演示 三模式）
 │  ├─ lib/dates.ts             # 日期工具（周一定义一周）
 │  └─ components/
-│     ├─ AuthPage.tsx          # 登录页（邮箱 + 6 位验证码，可跳过）
+│     ├─ AuthPage.tsx          # 登录页（登录/注册切换，注册填两次密码，可跳过）
 │     ├─ SideNav.tsx           # 左侧侧边导航（打分/记录/兑换/规则）
 │     ├─ AppHeader.tsx         # 顶部标题栏（状态标签 + 登录/退出 + 余额）
 │     ├─ CalendarView.tsx      # 记录页日历视图（月历格子 + 月战绩 + 当日详情弹窗）

@@ -56,15 +56,14 @@ export default function AppHeader({
         )}
       </div>
 
-      {/* 吉祥物仅装饰：不参与点击、不挡按钮 */}
-      <img
-        src="/ui/mascot-books.png"
-        alt=""
-        aria-hidden
-        className="pointer-events-none absolute -top-7 right-36 hidden h-24 select-none tb:block"
-      />
-
-      <div className="ml-auto flex items-center gap-3">
+      {/* 右侧操作区：吉祥物排在按钮前面（流式布局，永远不会盖住按钮） */}
+      <div className="relative z-10 ml-auto flex items-center gap-2 tb:gap-3">
+        <img
+          src="/ui/mascot-books.png"
+          alt=""
+          aria-hidden
+          className="pointer-events-none hidden h-14 w-14 select-none object-contain tb:block"
+        />
         <button
           onClick={onRefresh}
           title="刷新"
