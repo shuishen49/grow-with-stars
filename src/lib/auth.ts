@@ -33,6 +33,41 @@ export async function signOut(): Promise<void> {
   await supabase?.auth.signOut()
 }
 
+/**
+ * 登录状态是否**真的**有效。
+ * localStorage 里存着的 session 不代表能用 —— 账号被删、被禁用之后，
+ * 本地凭据看起来还在，但服务器已经不认了。
+ * 这种「僵尸登录」很危险：云端查询不报错、只会安静地返回 0 条，
+ * 若当成「云端就是空的」会让家长误选「以云端为准」把本机数据清掉。
+ *
+ * 返回：'valid' 能用 / 'dead' 服务器明确拒绝（该退出）/ 'unknown' 断网等查不出来（别乱动）
+ */
+export async function sessionState(): Promise<'valid' | 'dead' | 'unknown'> {
+  if (!supabase) return 'unknown'
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    if (!error && data.user) return 'valid'
+    const m = (error?.message ?? '').toLowerCase()
+    const rejected =
+      m.includes('sub claim') ||
+      m.includes('user not found') ||
+      m.includes('invalid claim') ||
+      m.includes('session not found') ||
+      m.includes('jwt') ||
+      m.includes('token')
+    return rejected ? 'dead' : 'unknown'
+  } catch {
+    return 'unknown' // 断网等情况宁可不动，别把人误退出
+  }
+}
+
+/** 这类报错说明登录凭据已经没用了，应当退回本机模式，而不是卡在「假登录」里反复失败 */
+export function isAuthDeadError(msg: string): boolean {
+  return /登录已失效|user from sub claim|user not found|invalid claim|jws|jwt|unauthorized/i.test(
+    msg,
+  )
+}
+
 export async function getSession(): Promise<Session | null> {
   if (!supabase) return null
   const { data } = await supabase.auth.getSession()

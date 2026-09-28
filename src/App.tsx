@@ -15,7 +15,7 @@ import {
   type SourceMode,
 } from './lib/store'
 import { sameWeek, todayStr } from './lib/dates'
-import { getSession, onAuthChange, signOut } from './lib/auth'
+import { getSession, isAuthDeadError, onAuthChange, sessionState, signOut } from './lib/auth'
 import { supabaseConfigured, useMock } from './lib/supabase'
 import { requireParent } from './lib/parentLock'
 import {
@@ -185,6 +185,26 @@ export default function App() {
   }, [refresh, authReady])
 
   /**
+   * 强制退回本机模式。用在登录凭据失效（账号被删、密码改了等）的场合：
+   * 不退出来的话，云端查询只会安静地返回空，界面就一直卡在「假登录」里。
+   */
+  const forceSignOut = useCallback(
+    async (msg: string) => {
+      try {
+        await signOut()
+      } catch {
+        /* 就算服务器联系不上，也要把本地状态清掉 */
+      }
+      setSession(null)
+      setShowAuth(false)
+      setSyncChecked(true)
+      setSyncChoice(null)
+      showToast(msg)
+    },
+    [showToast],
+  )
+
+  /**
    * 登录后同步策略：默认以云端为准。
    * 只有当这台设备上确实另有记录、而且和云端不一样时，才弹窗让家长自己选。
    */
@@ -192,6 +212,14 @@ export default function App() {
     if (!session || demo || syncChecked || syncChoice) return
     let alive = true
     void (async () => {
+      // 先验登录是不是真的还活着。账号被删后 session 仍在本地，云端查询
+      // 不报错只会返回 0 条 —— 直接比下去会误判成「云端是空的」。
+      const st = await sessionState()
+      if (!alive) return
+      if (st === 'dead') {
+        await forceSignOut('登录已失效（账号可能被删除或密码改了），已自动退出。这台设备上的数据都还在。')
+        return
+      }
       const local = readLocalRows()
       if (local.length === 0) {
         // 本机本来就空的：没什么可选的，直接用云端
@@ -217,7 +245,7 @@ export default function App() {
     return () => {
       alive = false
     }
-  }, [session, demo, syncChecked, syncChoice])
+  }, [session, demo, syncChecked, syncChoice, forceSignOut])
 
   const enableDemo = () => {
     localStorage.setItem('tp_demo', '1')
@@ -278,7 +306,13 @@ export default function App() {
       setSyncChoice(null)
       await refresh()
     } catch (e) {
-      showToast('同步失败：' + (e instanceof Error ? e.message : String(e)))
+      const msg = e instanceof Error ? e.message : String(e)
+      if (isAuthDeadError(msg)) {
+        // 凭据失效：退回本机模式，别让家长反复点反复失败
+        await forceSignOut('登录已失效，已自动退出。你的数据都还在这台设备上，重新登录后再同步。')
+      } else {
+        showToast('同步失败：' + msg)
+      }
     } finally {
       setSyncBusy(false)
     }
@@ -444,7 +478,12 @@ export default function App() {
       {/* 登录后：本机和云端账不一致 → 让家长自己选以哪边为准 */}
       <Modal
         open={syncChoice !== null}
-        onClose={() => setSyncChoice(null)}
+        onClose={() => {
+          // 关掉 = 「先只看云端」，这次登录不再弹。
+          // 之前关掉后 effect 又重新跑一遍，弹窗立刻原地复活，像死循环。
+          setSyncChecked(true)
+          setSyncChoice(null)
+        }}
         title="两边的数据不一样"
       >
         {syncChoice && (
