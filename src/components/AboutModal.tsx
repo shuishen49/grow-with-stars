@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Modal from './Modal'
 import { APP_VERSION, hotUpdateSupported } from '../lib/hotUpdate'
 import type { SourceMode } from '../lib/store'
@@ -32,8 +33,20 @@ function parseVersion(v: string): { date: string; build: string; dev: boolean } 
 
 /** 「关于」弹窗：版本信息 + 开发者联系方式 + 检查更新 */
 export default function AboutModal({ open, onClose, mode, email, checking, onCheckUpdate }: Props) {
+  const [copied, setCopied] = useState('')
   if (!open) return null
   const { date, build } = parseVersion(APP_VERSION)
+
+  /** 点一下 QQ 号就复制走，省得还得拿笔抄 */
+  const copyQQ = async () => {
+    try {
+      await navigator.clipboard.writeText('93418328')
+      setCopied('已复制 QQ 号')
+    } catch {
+      setCopied('复制失败，请手动记下 93418328')
+    }
+    setTimeout(() => setCopied(''), 2500)
+  }
 
   return (
     <Modal open onClose={onClose} title="关于家庭积分本">
@@ -74,7 +87,13 @@ export default function AboutModal({ open, onClose, mode, email, checking, onChe
         <div className="mt-1 text-sm leading-6 text-ink">
           个人开发者 · <b>小鑫学渣</b>
         </div>
-        <div className="text-sm leading-6 text-ink">QQ：93418328</div>
+        <button onClick={copyQQ} className="tap flex items-baseline gap-1.5 text-sm leading-6 text-ink">
+          <span>QQ：93418328</span>
+          <span aria-hidden className="text-xs">
+            📋
+          </span>
+        </button>
+        <div className="h-1 text-xs text-brand">{copied}</div>
         <div className="mt-1 text-xs leading-6 text-mut">
           一个人做的小工具，不采集任何个人信息，也没有广告。遇到问题随时 QQ 找我。
         </div>
