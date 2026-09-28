@@ -11,8 +11,11 @@ import { CapacitorUpdater } from '@capgo/capacitor-updater'
  * 安全性：更新包只会影响界面和逻辑，动不了原生部分；
  * 新包要是启动后 10 秒内没「报平安」，插件会自动回滚到上一个能用的版本。
  */
+// ⚠️ 必须用 releases/download/<标签名> 这种写法，不能用 releases/latest/download。
+// GitHub 的「latest」只认正式版（非 prerelease），而我们的滚动包是 prerelease，
+// 用 latest/download 会直接 404，热更新就永远查不到新版本（踩过这个坑）。
 const MANIFEST_URL =
-  'https://github.com/shuishen49/grow-with-stars/releases/latest/download/hot-update.json'
+  'https://github.com/shuishen49/grow-with-stars/releases/download/latest/hot-update.json'
 
 export interface HotUpdateInfo {
   version: string

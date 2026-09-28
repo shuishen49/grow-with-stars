@@ -212,46 +212,108 @@ export function getStore(mode: SourceMode): DataStore {
   return new LocalStore(LS_LOCAL, 'local')
 }
 
-/** 读取本机（未登录）已攒下的记录条数，用于登录后询问是否上传 */
-export function countLocalRows(): number {
+/** 读取本机（未登录时）攒下的记录 */
+export function readLocalRows(): LedgerRow[] {
   const raw = localStorage.getItem(LS_LOCAL)
-  if (!raw) return 0
+  if (!raw) return []
   try {
-    return (JSON.parse(raw) as LedgerRow[]).length
+    return JSON.parse(raw) as LedgerRow[]
   } catch {
-    return 0
+    return []
   }
 }
 
-/** 登录后把本机记录上传合并到云端；同一天已有记录时以本机为准覆盖 */
-export async function uploadLocalRows(): Promise<number> {
-  if (!supabase) return 0
-  const raw = localStorage.getItem(LS_LOCAL)
-  if (!raw) return 0
-  let rows: LedgerRow[]
-  try {
-    rows = JSON.parse(raw) as LedgerRow[]
-  } catch {
-    return 0
-  }
-  if (rows.length === 0) return 0
+/**
+ * 把一批记录写回本机。
+ * 两个用途：① 退出登录时留一份快照，退出后照样能看能记；
+ * ② 家长选了「以云端为准」后，让本机和云端保持一致，避免下次登录又问一遍。
+ */
+export function writeLocalRows(rows: LedgerRow[]): void {
+  localStorage.setItem(LS_LOCAL, JSON.stringify(rows))
+}
 
+/**
+ * 两份数据的「指纹」：按 日期|类型|分值 排序后拼起来。
+ * 用来判断云端和本机是不是完全一样 —— 一样就不用弹窗烦人了。
+ */
+export function rowsSignature(rows: LedgerRow[]): string {
+  return rows
+    .map((r) => `${r.entry_date}|${r.kind}|${r.delta}`)
+    .sort()
+    .join(',')
+}
+
+export function sumPoints(rows: LedgerRow[]): number {
+  return rows.reduce((s, r) => s + r.delta, 0)
+}
+
+/** 登录用户 id；会话失效就抛错 */
+async function currentUid(): Promise<string> {
+  if (!supabase) throw new Error('Supabase 未配置')
   const { data } = await supabase.auth.getUser()
   if (!data.user) throw new Error('登录已失效，请重新登录')
-  const user_id = data.user.id
+  return data.user.id
+}
 
-  const payload = rows.map((r) => ({
+function toPayload(user_id: string, rows: LedgerRow[]) {
+  return rows.map((r) => ({
     user_id,
     entry_date: r.entry_date,
     kind: r.kind,
     detail: r.detail,
     delta: r.delta,
   }))
-  const { error, count } = await supabase
+}
+
+/**
+ * 家长选「以本机为准」：用本机数据整体覆盖云端。
+ * 顺序是「先写后删」—— 先把本机记录全部 upsert 进去，再删掉云端多出来的行，
+ * 这样中途出错也只是少删，不会把数据清空。
+ */
+export async function replaceCloudRows(rows: LedgerRow[]): Promise<void> {
+  const db = supabase!
+  const user_id = await currentUid()
+  if (rows.length > 0) {
+    const { error } = await db
+      .from('ledger')
+      .upsert(toPayload(user_id, rows), { onConflict: 'user_id,entry_date,kind' })
+    if (error) throw new Error(error.message)
+  }
+  const keep = new Set(rows.map((r) => `${r.entry_date}|${r.kind}`))
+  const { data: cloud, error: e2 } = await db
     .from('ledger')
-    .upsert(payload, { onConflict: 'user_id,entry_date,kind', count: 'exact' })
+    .select('id,entry_date,kind')
+    .eq('user_id', user_id)
+  if (e2) throw new Error(e2.message)
+  const del = (cloud ?? []).filter((r) => !keep.has(`${r.entry_date}|${r.kind}`)).map((r) => r.id)
+  if (del.length > 0) {
+    const { error } = await db.from('ledger').delete().in('id', del)
+    if (error) throw new Error(error.message)
+  }
+}
+
+/**
+ * 家长选「两边都留着」：合并两套记录。
+ * 同一天同一类型两边都有时，以这台设备的为准（它通常是刚记的、最新的）。
+ * 返回合并后的完整记录，方便写回本机。
+ */
+export async function mergeRowsIntoCloud(local: LedgerRow[]): Promise<LedgerRow[]> {
+  const db = supabase!
+  const user_id = await currentUid()
+  if (local.length > 0) {
+    const { error } = await db
+      .from('ledger')
+      .upsert(toPayload(user_id, local), { onConflict: 'user_id,entry_date,kind' })
+    if (error) throw new Error(error.message)
+  }
+  const { data, error } = await db
+    .from('ledger')
+    .select('id,entry_date,kind,detail,delta,created_at')
+    .eq('user_id', user_id)
+    .order('entry_date')
+    .order('id')
   if (error) throw new Error(error.message)
-  return count ?? payload.length
+  return (data ?? []) as LedgerRow[]
 }
 
 export function isMissingTableError(msg: string): boolean {

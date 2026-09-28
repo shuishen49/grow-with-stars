@@ -2,10 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { REDEEM_TIERS } from './data/rules'
 import {
-  countLocalRows,
   getStore,
   isMissingTableError,
-  uploadLocalRows,
+  mergeRowsIntoCloud,
+  readLocalRows,
+  replaceCloudRows,
+  rowsSignature,
+  sumPoints,
+  writeLocalRows,
   type DayEntry,
   type LedgerRow,
   type SourceMode,
@@ -45,11 +49,16 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false)
   /** 主动打开登录页（不登录也能用，所以登录页不是首屏） */
   const [showAuth, setShowAuth] = useState(false)
-  /** 登录后询问是否上传本机记录 */
-  const [mergeAsk, setMergeAsk] = useState(false)
-  const [mergeBusy, setMergeBusy] = useState(false)
-  const [mergeDone, setMergeDone] = useState(false)
-  const [localCount, setLocalCount] = useState(0)
+  /**
+   * 登录后两边的账不一致时，弹窗让家长自己选「以哪边为准」。
+   * 默认立场是云端（登录后以云端为准），但绝不会偷偷覆盖本机数据。
+   */
+  const [syncChoice, setSyncChoice] = useState<{ cloud: LedgerRow[]; local: LedgerRow[] } | null>(
+    null,
+  )
+  const [syncBusy, setSyncBusy] = useState(false)
+  /** 本次登录已经处理过同步，别反复弹窗 */
+  const [syncChecked, setSyncChecked] = useState(false)
 
   const [rows, setRows] = useState<LedgerRow[] | null>(null)
   const [dbError, setDbError] = useState<string | null>(null)
@@ -175,14 +184,40 @@ export default function App() {
     refresh()
   }, [refresh, authReady])
 
-  // 刚登录且本机有记录 → 询问是否上传合并
+  /**
+   * 登录后同步策略：默认以云端为准。
+   * 只有当这台设备上确实另有记录、而且和云端不一样时，才弹窗让家长自己选。
+   */
   useEffect(() => {
-    if (!session || demo || mergeDone) return
-    const n = countLocalRows()
-    if (n === 0) return
-    setLocalCount(n)
-    setMergeAsk(true)
-  }, [session, demo, mergeDone])
+    if (!session || demo || syncChecked || syncChoice) return
+    let alive = true
+    void (async () => {
+      const local = readLocalRows()
+      if (local.length === 0) {
+        // 本机本来就空的：没什么可选的，直接用云端
+        setSyncChecked(true)
+        return
+      }
+      let cloud: LedgerRow[]
+      try {
+        cloud = await getStore('cloud').fetchAll()
+      } catch {
+        // 云端读不出来时交给页面上的错误提示，这里不弹窗
+        return
+      }
+      if (!alive) return
+      if (rowsSignature(local) === rowsSignature(cloud)) {
+        // 两边一模一样：以云端为准，顺手让本机保持同一份
+        writeLocalRows(cloud)
+        setSyncChecked(true)
+        return
+      }
+      setSyncChoice({ cloud, local })
+    })()
+    return () => {
+      alive = false
+    }
+  }, [session, demo, syncChecked, syncChoice])
 
   const enableDemo = () => {
     localStorage.setItem('tp_demo', '1')
@@ -209,26 +244,43 @@ export default function App() {
   }
 
   const handleLogout = async () => {
-    if (!window.confirm('确定退出登录吗？退出后本机仍可继续记账（不同步到云端）。')) return
+    const ok = window.confirm(
+      '确定退出登录吗？\n\n退出只是「不再和云端同步」：这台设备上现在看到的积分和记录会原样留着，照样能打分、看日历、兑换。\n以后再登录时，如果两边不一样，会让你自己选以哪边为准。',
+    )
+    if (!ok) return
+    // 关键：退出前把当前这份数据留在本机，不然退出后积分会变成 0
+    if (rows && rows.length > 0) writeLocalRows(rows)
     await signOut()
     setSession(null)
     setShowAuth(false)
-    setMergeDone(false)
-    showToast('已退出登录，现在用本机数据')
+    setSyncChecked(false)
+    showToast('已退出登录：不再同步云端，本机数据照常使用')
   }
 
-  const doMerge = async () => {
-    setMergeBusy(true)
+  /** 家长在弹窗里选了以哪边为准 */
+  const applySyncChoice = async (which: 'cloud' | 'local' | 'merge') => {
+    if (!syncChoice) return
+    setSyncBusy(true)
     try {
-      const n = await uploadLocalRows()
-      setMergeDone(true)
-      setMergeAsk(false)
+      if (which === 'cloud') {
+        writeLocalRows(syncChoice.cloud)
+        showToast('已按云端数据为准，这台设备同步成同一份')
+      } else if (which === 'local') {
+        await replaceCloudRows(syncChoice.local)
+        writeLocalRows(syncChoice.local)
+        showToast('已按这台设备的数据为准，云端已同步')
+      } else {
+        const merged = await mergeRowsIntoCloud(syncChoice.local)
+        writeLocalRows(merged)
+        showToast(`两边都留下了，合并后共 ${merged.length} 条`)
+      }
+      setSyncChecked(true)
+      setSyncChoice(null)
       await refresh()
-      showToast(`已把本机 ${n} 条记录同步到云端`)
     } catch (e) {
       showToast('同步失败：' + (e instanceof Error ? e.message : String(e)))
     } finally {
-      setMergeBusy(false)
+      setSyncBusy(false)
     }
   }
 
@@ -389,32 +441,97 @@ export default function App() {
         </div>
       </div>
 
-      {/* 登录后询问：把本机记录上传合并到云端 */}
-      <Modal open={mergeAsk} onClose={() => setMergeAsk(false)} title="同步本机记录">
-        <p className="text-sm leading-6 text-ink/80">
-          检测到这台设备上还有 <b className="text-brand">{localCount}</b> 条未登录时记录的数据。
-          要同步到云端吗？同步后换设备登录也能看到。
-        </p>
-        <p className="mt-2 rounded-ctl bg-canvas px-4 py-3 text-xs leading-6 text-mut">
-          同一天云端已有记录时，以这台设备的数据为准覆盖；其他日期的记录会保留。
-        </p>
-        <button
-          onClick={doMerge}
-          disabled={mergeBusy}
-          className="btn-primary mt-3 flex min-h-[48px] w-full items-center justify-center text-base disabled:opacity-40"
-        >
-          {mergeBusy ? '同步中…' : '一键上传合并'}
-        </button>
-        <button
-          onClick={() => {
-            setMergeDone(true)
-            setMergeAsk(false)
-          }}
-          disabled={mergeBusy}
-          className="tap mt-2 flex min-h-[44px] w-full items-center justify-center rounded-ctl bg-canvas text-sm font-medium text-mut hover:text-ink"
-        >
-          暂不，先只看云端数据
-        </button>
+      {/* 登录后：本机和云端账不一致 → 让家长自己选以哪边为准 */}
+      <Modal
+        open={syncChoice !== null}
+        onClose={() => setSyncChoice(null)}
+        title="两边的数据不一样"
+      >
+        {syncChoice && (
+          <>
+            <p className="text-sm leading-6 text-ink/80">
+              这台设备和云端账号里的积分对不上，想以哪边为准？
+              {syncChoice.cloud.length === 0 ? (
+                <>
+                  云端这个账号还是空的，<b className="text-ink">建议用这台设备的数据</b>。
+                </>
+              ) : (
+                <>
+                  <b className="text-ink">不确定的话选云端更稳妥</b>
+                  （它是多设备共享的那一份）。
+                </>
+              )}
+            </p>
+
+            <div className="mt-3 grid gap-2 tb:grid-cols-2">
+              <div className="rounded-ctl bg-canvas px-4 py-3">
+                <div className="text-xs text-mut">☁️ 云端（{session?.user?.email}）</div>
+                <div className="mt-1 text-2xl font-extrabold text-pos">
+                  {sumPoints(syncChoice.cloud)}
+                  <span className="ml-1 text-sm font-bold text-mut">分</span>
+                </div>
+                <div className="text-xs text-mut">{syncChoice.cloud.length} 条记录</div>
+              </div>
+              <div className="rounded-ctl bg-canvas px-4 py-3">
+                <div className="text-xs text-mut">📱 这台设备</div>
+                <div className="mt-1 text-2xl font-extrabold text-pos">
+                  {sumPoints(syncChoice.local)}
+                  <span className="ml-1 text-sm font-bold text-mut">分</span>
+                </div>
+                <div className="text-xs text-mut">{syncChoice.local.length} 条记录</div>
+              </div>
+            </div>
+
+            {syncChoice.cloud.length === 0 ? (
+              <>
+                <button
+                  onClick={() => applySyncChoice('local')}
+                  disabled={syncBusy}
+                  className="btn-primary mt-3 flex min-h-[52px] w-full items-center justify-center text-base disabled:opacity-40"
+                >
+                  📱 用这台设备的数据（推荐）
+                </button>
+                <button
+                  onClick={() => applySyncChoice('cloud')}
+                  disabled={syncBusy}
+                  className="tap mt-2 flex min-h-[52px] w-full items-center justify-center rounded-ctl border border-line bg-white text-base font-bold text-ink hover:border-brand/40 disabled:opacity-40"
+                >
+                  ☁️ 用云端的（会从这台设备清掉这些数据）
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => applySyncChoice('cloud')}
+                  disabled={syncBusy}
+                  className="btn-primary mt-3 flex min-h-[52px] w-full items-center justify-center text-base disabled:opacity-40"
+                >
+                  ☁️ 用云端的数据（推荐）
+                </button>
+                <button
+                  onClick={() => applySyncChoice('local')}
+                  disabled={syncBusy}
+                  className="tap mt-2 flex min-h-[52px] w-full items-center justify-center rounded-ctl border border-line bg-white text-base font-bold text-ink hover:border-brand/40 disabled:opacity-40"
+                >
+                  📱 用这台设备的数据（覆盖云端）
+                </button>
+              </>
+            )}
+            <button
+              onClick={() => applySyncChoice('merge')}
+              disabled={syncBusy}
+              className="tap mt-2 flex min-h-[48px] w-full items-center justify-center rounded-ctl bg-brand-soft text-sm font-bold text-brand disabled:opacity-40"
+            >
+              🔀 两边都留着（合并，同一天以本机为准）
+            </button>
+
+            <p className="mt-3 rounded-ctl bg-canvas px-4 py-3 text-xs leading-6 text-mut">
+              {syncBusy
+                ? '正在同步…'
+                : '不管选哪个，另一边的数据都会先显示给你看过；选完可以随时退出登录，退出只是不再同步，不会清空任何一边。'}
+            </p>
+          </>
+        )}
       </Modal>
 
       {/* 热更新：更新前展示「改了什么」；更新完展示「本次更新内容」 */}

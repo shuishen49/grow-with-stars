@@ -25,3 +25,6 @@ android/.idea/
 
 # 构建时生成的版本号文件
 .build_id
+
+# 本地下载的 APK / 热更新产物（CI 自己会生成，不入库）
+out/

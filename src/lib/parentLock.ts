@@ -33,6 +33,25 @@ const TYPE_LABEL: Partial<Record<BiometryType, string>> = {
   [BiometryType.faceId]: '人脸（Face ID）',
 }
 
+/**
+ * 插件偶尔会直接把安卓系统的英文原话抛出来（例如
+ * "There is no biometric hardware on this device."），直接显示给家长看很突兀，
+ * 这里统一翻成中文；认不出来的才原样返回。
+ */
+function friendly(raw: string): string {
+  const m = raw.toLowerCase()
+  if (m.includes('no biometric hardware') || m.includes('hardware unavailable'))
+    return '这台设备没有指纹/人脸识别硬件'
+  if (m.includes('none enrolled') || m.includes('no biometric') || m.includes('not enrolled'))
+    return '设备里还没录入指纹或人脸，先去系统设置里录入'
+  if (m.includes('not available')) return '这台设备现在没法做指纹/人脸验证'
+  if (m.includes('lock screen') || m.includes('not secure') || m.includes('no device credential'))
+    return '设备没设锁屏密码，没法验证'
+  if (m.includes('lockout')) return '失败次数太多被暂时锁住，等一会儿再试'
+  if (m.includes('cancel')) return '已取消验证'
+  return raw
+}
+
 const ERR_MSG: Record<string, string> = {
   biometryNotAvailable: '这台设备不支持指纹/人脸验证',
   biometryNotEnrolled: '设备里还没录入指纹或人脸，先去系统设置里录入',
@@ -67,9 +86,20 @@ export async function checkBiometry(): Promise<BiometryStatus> {
     if (r.deviceIsSecure) {
       return { ok: true, label: '锁屏密码', detail: '没录入生物特征，但可以用锁屏密码代替。' }
     }
-    return { ok: false, label, detail: r.reason || '这台设备既没录入生物特征也没设锁屏密码。' }
+    // 不可用的时候别再显示「指纹」之类的名字，会让人以为能用
+    return {
+      ok: false,
+      label: '不可用',
+      detail: r.reason
+        ? friendly(r.reason)
+        : '这台设备既没录入生物特征也没设锁屏密码，开不了家长锁。',
+    }
   } catch (e) {
-    return { ok: false, label: '不可用', detail: e instanceof Error ? e.message : String(e) }
+    return {
+      ok: false,
+      label: '不可用',
+      detail: e instanceof Error ? friendly(e.message) : '检测不到验证能力',
+    }
   }
 }
 
@@ -93,7 +123,10 @@ export async function forceVerify(action: string): Promise<{ ok: boolean; msg?: 
     return { ok: true }
   } catch (e) {
     const code = (e as { code?: string })?.code ?? ''
-    return { ok: false, msg: ERR_MSG[code] ?? (e instanceof Error ? e.message : '验证失败') }
+    return {
+      ok: false,
+      msg: ERR_MSG[code] ?? (e instanceof Error ? friendly(e.message) : '验证失败'),
+    }
   }
 }
 
