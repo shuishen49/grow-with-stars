@@ -34,6 +34,13 @@ export interface HotUpdateInfo {
   publishedAt: string
   /** 更新包字节数，只用来告诉用户「要下多大」，没有也不影响更新 */
   size?: number
+  /**
+   * 更新包的 sha256 十六进制。
+   * ⚠️ 必填：capacitor-updater 8.x 的 download() 不传校验和会直接抛
+   * "Checksum required"（2026-09-28 踩到，表现为 6ms 就失败、错误还是空的）。
+   * 原生层会拿它校验下载回来的文件，下残或被掉包都会被拒。
+   */
+  checksum?: string
 }
 
 /** 2.8 MB 这种写法，给用户看的下载体量 */
@@ -103,6 +110,7 @@ async function fetchOneManifest(url: string): Promise<HotUpdateInfo> {
         notes: Array.isArray(j.notes) ? j.notes : [],
         publishedAt: j.publishedAt ?? '',
         size: typeof j.size === 'number' ? j.size : undefined,
+        checksum: typeof j.checksum === 'string' ? j.checksum : undefined,
       }
     } catch (e) {
       lastErr = e
@@ -177,10 +185,17 @@ export function takePendingNotes(): HotUpdateInfo | null {
  * 一个源下载失败会自动换下一个。
  */
 export async function applyHotUpdate(info: HotUpdateInfo): Promise<void> {
+  if (!info.checksum) {
+    throw new Error('更新包缺少校验信息，为了安全不安装（重新打包发布一次就好）')
+  }
   let lastErr: unknown = null
   for (const url of bundleUrls(info)) {
     try {
-      const bundle = await CapacitorUpdater.download({ url, version: info.version })
+      const bundle = await CapacitorUpdater.download({
+        url,
+        version: info.version,
+        checksum: info.checksum,
+      })
       stashNotes(info)
       await CapacitorUpdater.set({ id: bundle.id })
       return

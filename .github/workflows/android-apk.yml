@@ -61,6 +61,7 @@ jobs:
           (cd dist && zip -qr ../out/hot-bundle.zip .)
           node -e "
             const fs = require('fs');
+            const crypto = require('crypto');
             const cp = require('child_process');
             const id = fs.readFileSync('.build_id', 'utf8').trim();
             const isTag = process.env.GITHUB_REF_TYPE === 'tag';
@@ -86,7 +87,10 @@ jobs:
             }
             // size 只是给界面上「要下多大」一个诚实的提示，错的也不影响更新
             const size = fs.statSync('out/hot-bundle.zip').size;
-            const info = { version: id, url: urls[0], urls, notes, publishedAt: new Date().toISOString().slice(0, 10), size };
+            // checksum 必须给：capacitor-updater 8.x 的 download() 没有校验和会直接拒绝，
+            // 而且它也确实会拿这个哈希验证下载回来的包是不是被人动过、有没有下残。
+            const checksum = crypto.createHash('sha256').update(fs.readFileSync('out/hot-bundle.zip')).digest('hex');
+            const info = { version: id, url: urls[0], urls, notes, publishedAt: new Date().toISOString().slice(0, 10), size, checksum };
             fs.writeFileSync('out/hot-update.json', JSON.stringify(info, null, 2));
             console.log('热更新清单:', JSON.stringify(info, null, 2));
           "
