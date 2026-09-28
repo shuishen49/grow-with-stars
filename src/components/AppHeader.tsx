@@ -19,6 +19,10 @@ const MODE_TAG: Record<SourceMode, { text: string; cls: string }> = {
   demo: { text: '演示数据', cls: 'bg-peach text-golddeep' },
 }
 
+// 打包时没带 Supabase 地址（云构建缺 VITE_SUPABASE_*）→ 登录按钮压根不会渲染。
+// 这种情况要明确说「未配置」，否则会被误以为是登录功能坏了。
+const NO_CLOUD_TAG = { text: '未配置云同步 · 仅本机', cls: 'bg-peach text-golddeep' }
+
 /** 平板顶栏：勋章 + 标题口号 + 吉祥物装饰 + 当前积分徽章 + 登录/退出 */
 export default function AppHeader({
   balance,
@@ -32,7 +36,7 @@ export default function AppHeader({
   onLogin,
   onLogout,
 }: Props) {
-  const tag = MODE_TAG[mode]
+  const tag = !authEnabled && mode === 'local' ? NO_CLOUD_TAG : MODE_TAG[mode]
 
   return (
     <header className="relative mb-5 flex min-h-[72px] items-center gap-3 pr-2">
