@@ -18,10 +18,10 @@ export function fmtDelta(n: number): string {
 
 /** 分类 id → 素材包图标（public/ui/） */
 const CAT_ICON: Record<string, string> = {
-  life: '/ui/category-life.png',
-  study: '/ui/category-study.png',
-  result: '/ui/category-achievement.png',
-  character: '/ui/category-character.png',
+  life: '/ui/category-life.webp',
+  study: '/ui/category-study.webp',
+  result: '/ui/category-achievement.webp',
+  character: '/ui/category-character.webp',
 }
 
 /** 单个打分项：白底卡片，选中后紫底描边（aria-pressed 供无障碍与样式共用） */
@@ -355,7 +355,7 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear 
           {entries.length === 0 ? (
             <div className="py-6 text-center">
               <img
-                src="/ui/mascot-wave.png"
+                src="/ui/mascot-wave.webp"
                 alt=""
                 aria-hidden
                 className="mx-auto h-28 object-contain"
@@ -402,7 +402,7 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear 
                 pending > 0 ? 'text-pos' : pending < 0 ? 'text-neg' : 'text-mut'
               }`}
             >
-              <img src="/ui/nav-score.png" alt="" aria-hidden className="h-9 w-9 object-contain" />
+              <img src="/ui/nav-score.webp" alt="" aria-hidden className="h-9 w-9 object-contain" />
               {fmtDelta(pending)}
             </div>
           </div>

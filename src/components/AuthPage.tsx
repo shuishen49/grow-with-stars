@@ -69,14 +69,14 @@ export default function AuthPage({ onSignedIn, onStayLocal, onDemo }: Props) {
       <div className="card relative overflow-hidden p-6">
         {/* 装饰吉祥物，不参与点击 */}
         <img
-          src="/ui/mascot-books.png"
+          src="/ui/mascot-books.webp"
           alt=""
           aria-hidden
           className="pointer-events-none absolute -right-3 -top-4 h-28 select-none"
         />
 
         <div className="flex items-center gap-2.5">
-          <img src="/ui/brand-medal.png" alt="" aria-hidden className="h-9 w-9 object-contain" />
+          <img src="/ui/brand-medal.webp" alt="" aria-hidden className="h-9 w-9 object-contain" />
           <div>
             <h2 className="text-xl font-extrabold">登录同步</h2>
             <p className="text-xs text-mut">登录后可在平板、手机、电脑之间同步积分</p>

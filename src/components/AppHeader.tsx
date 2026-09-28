@@ -40,7 +40,7 @@ export default function AppHeader({
 
   return (
     <header className="relative mb-5 flex min-h-[72px] items-center gap-3 pr-2">
-      <img src="/ui/brand-medal.png" alt="" aria-hidden className="h-9 w-9 object-contain" />
+      <img src="/ui/brand-medal.webp" alt="" aria-hidden className="h-9 w-9 object-contain" />
       <div className="min-w-0">
         <div className="flex items-center gap-2">
           <h1 className="text-2xl font-extrabold leading-tight text-ink">家庭积分本</h1>
@@ -63,7 +63,7 @@ export default function AppHeader({
       {/* 右侧操作区：吉祥物排在按钮前面（流式布局，永远不会盖住按钮） */}
       <div className="relative z-10 ml-auto flex items-center gap-2 tb:gap-3">
         <img
-          src="/ui/mascot-books.png"
+          src="/ui/mascot-books.webp"
           alt=""
           aria-hidden
           className="pointer-events-none hidden h-14 w-14 select-none object-contain tb:block"
@@ -97,7 +97,7 @@ export default function AppHeader({
           ))}
 
         <div className="flex items-center gap-2.5 rounded-card border border-line bg-white px-4 py-2 shadow-card">
-          <img src="/ui/nav-score.png" alt="" aria-hidden className="h-8 w-8 object-contain" />
+          <img src="/ui/nav-score.webp" alt="" aria-hidden className="h-8 w-8 object-contain" />
           <div className="text-right">
             <div className="text-xs leading-none text-mut">当前积分</div>
             <div className="text-2xl font-extrabold leading-8 tabular-nums text-brand">{balance}</div>

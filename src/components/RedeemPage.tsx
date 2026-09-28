@@ -54,14 +54,14 @@ export default function RedeemPage({ rows, balance, onRedeem, onUndo }: Props) {
         {/* 余额卡片 */}
         <div className="card relative overflow-hidden p-6">
           <img
-            src="/ui/mascot-gift.png"
+            src="/ui/mascot-gift.webp"
             alt=""
             aria-hidden
             className="pointer-events-none absolute -right-2 -top-3 h-28 select-none"
           />
           <div className="text-sm text-mut">当前可用积分</div>
           <div className="mt-1 flex items-center gap-3">
-            <img src="/ui/nav-score.png" alt="" aria-hidden className="h-10 w-10 object-contain" />
+            <img src="/ui/nav-score.webp" alt="" aria-hidden className="h-10 w-10 object-contain" />
             <span className="text-[40px] font-extrabold leading-none tabular-nums text-brand">
               {balance}
             </span>
@@ -148,7 +148,7 @@ export default function RedeemPage({ rows, balance, onRedeem, onUndo }: Props) {
       <aside className="hidden tb:sticky tb:top-5 tb:block tb:w-[300px]">
         <div className="card relative overflow-hidden p-5 text-center">
           <img
-            src="/ui/nav-redeem.png"
+            src="/ui/nav-redeem.webp"
             alt=""
             aria-hidden
             className="mx-auto h-16 object-contain"

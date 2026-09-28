@@ -4,10 +4,10 @@ import SettingsCard from './SettingsCard'
 
 /** 分类 id → 素材包图标（与打分页一致） */
 const CAT_ICON: Record<string, string> = {
-  life: '/ui/category-life.png',
-  study: '/ui/category-study.png',
-  result: '/ui/category-achievement.png',
-  character: '/ui/category-character.png',
+  life: '/ui/category-life.webp',
+  study: '/ui/category-study.webp',
+  result: '/ui/category-achievement.webp',
+  character: '/ui/category-character.webp',
 }
 
 /**
@@ -106,7 +106,7 @@ export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
             aria-expanded={openTiers}
             className="tap flex min-h-[56px] w-full items-center gap-3 px-5 py-3 text-left"
           >
-            <img src="/ui/mascot-gift.png" alt="" aria-hidden className="h-7 w-7 object-contain" />
+            <img src="/ui/mascot-gift.webp" alt="" aria-hidden className="h-7 w-7 object-contain" />
             <span className="flex-1 text-lg font-bold">🎁 积分兑换表</span>
             <span className="rounded-full bg-peach px-2.5 py-0.5 text-xs text-golddeep">
               {REDEEM_TIERS.length} 档
@@ -144,7 +144,7 @@ export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
       <aside className="hidden tb:sticky tb:top-5 tb:block tb:w-[300px]">
         <div className="card relative overflow-hidden p-5 text-center">
           <img
-            src="/ui/mascot-reading.png"
+            src="/ui/mascot-reading.webp"
             alt=""
             aria-hidden
             className="pointer-events-none mx-auto h-28 select-none object-contain"

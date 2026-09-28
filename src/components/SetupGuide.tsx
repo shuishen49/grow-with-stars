@@ -27,7 +27,7 @@ export default function SetupGuide({ error, onRetry, onDemo }: Props) {
 
   return (
     <div className="card mx-auto max-w-2xl p-6">
-      <img src="/ui/mascot-books.png" alt="" aria-hidden className="h-20 object-contain" />
+      <img src="/ui/mascot-books.webp" alt="" aria-hidden className="h-20 object-contain" />
       <h2 className="mt-2 text-lg font-bold">数据库还未初始化</h2>
       <p className="mt-1 text-sm text-mut">
         只需一次：把下面的 SQL 粘贴到 Supabase 控制台的 SQL Editor 里运行，即可建表并导入 9

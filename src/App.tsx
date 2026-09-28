@@ -421,7 +421,7 @@ export default function App() {
             <div className="card flex h-[50vh] items-center justify-center">
               <div className="text-center text-mut">
                 <img
-                  src="/ui/mascot-wave.png"
+                  src="/ui/mascot-wave.webp"
                   alt=""
                   aria-hidden
                   className="mx-auto h-24 animate-bounce object-contain"

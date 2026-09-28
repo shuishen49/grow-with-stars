@@ -76,28 +76,28 @@ function StatsRow({
 }) {
   const items = [
     {
-      icon: '/ui/stat-coins.png',
+      icon: '/ui/stat-coins.webp',
       value: fmtDelta(stats.gain),
       label: '本月奖励',
       cls: 'text-pos',
       bg: 'bg-rosy',
     },
     {
-      icon: '/ui/stat-deduction.png',
+      icon: '/ui/stat-deduction.webp',
       value: `${stats.loss}`,
       label: '本月扣分',
       cls: 'text-neg',
       bg: 'bg-mint',
     },
     {
-      icon: '/ui/mascot-gift.png',
+      icon: '/ui/mascot-gift.webp',
       value: `${stats.redeem}`,
       label: '本月兑换',
       cls: 'text-golddeep',
       bg: 'bg-peach',
     },
     {
-      icon: '/ui/stat-balance.png',
+      icon: '/ui/stat-balance.webp',
       value: stats.monthEnd ?? '—',
       label: '月末结余',
       cls: 'text-brand',
@@ -198,15 +198,15 @@ export default function LogPage({ rows, onPickDate }: Props) {
     <div className="card relative overflow-hidden p-5">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="font-bold">📊 本月战绩</h2>
-        <img src="/ui/nav-score.png" alt="" aria-hidden className="h-7 w-7 object-contain" />
+        <img src="/ui/nav-score.webp" alt="" aria-hidden className="h-7 w-7 object-contain" />
       </div>
       <div className="space-y-1">
         {[
-          { icon: '/ui/stat-coins.png', v: fmtDelta(monthStats.gain), l: '本月奖励', cls: 'text-pos' },
-          { icon: '/ui/stat-deduction.png', v: `${monthStats.loss}`, l: '本月扣分', cls: 'text-neg' },
-          { icon: '/ui/mascot-gift.png', v: `${monthStats.redeem}`, l: '本月兑换', cls: 'text-golddeep' },
+          { icon: '/ui/stat-coins.webp', v: fmtDelta(monthStats.gain), l: '本月奖励', cls: 'text-pos' },
+          { icon: '/ui/stat-deduction.webp', v: `${monthStats.loss}`, l: '本月扣分', cls: 'text-neg' },
+          { icon: '/ui/mascot-gift.webp', v: `${monthStats.redeem}`, l: '本月兑换', cls: 'text-golddeep' },
           {
-            icon: '/ui/stat-balance.png',
+            icon: '/ui/stat-balance.webp',
             v: monthStats.monthEnd !== undefined ? `${monthStats.monthEnd}` : '—',
             l: '月末结余',
             cls: 'text-brand',
@@ -223,7 +223,7 @@ export default function LogPage({ rows, onPickDate }: Props) {
       {(monthStats.best || monthStats.worst) && (
         <div className="mt-3 space-y-2">
           <div className="flex items-center gap-2.5 rounded-ctl bg-rosy px-3.5 py-2.5 text-sm">
-            <img src="/ui/category-achievement.png" alt="" aria-hidden className="h-6 w-6 object-contain" />
+            <img src="/ui/category-achievement.webp" alt="" aria-hidden className="h-6 w-6 object-contain" />
             <span className="text-mut">最高分</span>
             <b className="tabular-nums text-posdeep">
               {monthStats.best ? fmtDelta(monthStats.best.delta) : '—'}
@@ -233,7 +233,7 @@ export default function LogPage({ rows, onPickDate }: Props) {
             </span>
           </div>
           <div className="flex items-center gap-2.5 rounded-ctl bg-mint px-3.5 py-2.5 text-sm">
-            <img src="/ui/stat-deduction.png" alt="" aria-hidden className="h-6 w-6 object-contain" />
+            <img src="/ui/stat-deduction.webp" alt="" aria-hidden className="h-6 w-6 object-contain" />
             <span className="text-mut">最低分</span>
             <b className="tabular-nums text-negdeep">
               {monthStats.worst ? fmtDelta(monthStats.worst.delta) : '—'}
@@ -247,7 +247,7 @@ export default function LogPage({ rows, onPickDate }: Props) {
 
       {/* 装饰吉祥物 */}
       <img
-        src="/ui/mascot-books.png"
+        src="/ui/mascot-books.webp"
         alt=""
         aria-hidden
         className="pointer-events-none absolute -bottom-3 -right-2 h-20 select-none opacity-90"

@@ -241,7 +241,7 @@ export default function CalendarView({ mk, rows, closingAt, onPickDate }: Props)
             ) : (
               <div className="rounded-ctl bg-canvas px-4 py-8 text-center">
                 <img
-                  src="/ui/mascot-wave.png"
+                  src="/ui/mascot-wave.webp"
                   alt=""
                   aria-hidden
                   className="mx-auto h-20 object-contain"
@@ -286,7 +286,7 @@ export default function CalendarView({ mk, rows, closingAt, onPickDate }: Props)
                 }}
                 className="btn-primary mt-3 flex min-h-[48px] w-full items-center justify-center gap-2 text-base"
               >
-                <img src="/ui/category-study.png" alt="" aria-hidden className="h-5 w-5 object-contain" />
+                <img src="/ui/category-study.webp" alt="" aria-hidden className="h-5 w-5 object-contain" />
                 修改这天
               </button>
             )}

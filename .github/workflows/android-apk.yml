@@ -58,7 +58,9 @@ jobs:
         run: |
           set -e
           mkdir -p out
-          (cd dist && zip -qr ../out/hot-bundle.zip .)
+          # icons/ 是给 APK 图标和网页版 favicon 用的，App 界面一张都不显示，
+          # 但整整占 616K —— 热更新包里排除掉（WebP 化之后这才是包里剩下的大头之一）
+          (cd dist && zip -qr ../out/hot-bundle.zip . -x 'icons/*')
           node -e "
             const fs = require('fs');
             const crypto = require('crypto');
