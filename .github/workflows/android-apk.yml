@@ -64,11 +64,13 @@ jobs:
             const cp = require('child_process');
             const id = fs.readFileSync('.build_id', 'utf8').trim();
             const isTag = process.env.GITHUB_REF_TYPE === 'tag';
+            // 主地址用仓库 hot 分支的 raw 直连（国内实测可达；Releases 附件走的
+            // objects.githubusercontent.com 在国内经常拉不到），附件作备用。
+            // 也不能用 releases/latest/download：latest 只认非 prerelease，会 404。
             const base = 'https://github.com/shuishen49/grow-with-stars/releases';
-            // 注意：不能用 /latest/download —— GitHub 的 latest 只认正式版，
-            // 我们的滚动包是 prerelease，用 latest/download 会 404，热更新就查不到。
-            // 这里按「标签名」取，latest 也是我们自己的标签名，一定取得到。
-            const url = base + '/download/' + (isTag ? process.env.GITHUB_REF_NAME : 'latest') + '/hot-bundle.zip';
+            const rawBase = 'https://raw.githubusercontent.com/shuishen49/grow-with-stars/hot';
+            const releaseUrl = base + '/download/' + (isTag ? process.env.GITHUB_REF_NAME : 'latest') + '/hot-bundle.zip';
+            const urls = [rawBase + '/hot-bundle.zip', releaseUrl];
             // 更新说明：仓库里有 HOTUPDATE.md 就用它，只认「- xxx」/「* xxx」开头的行，
             // 正文里的说明文字不算（之前把说明也当成了更新条目，App 里显示了一堆废话）。
             let notes = [];
@@ -82,11 +84,33 @@ jobs:
             if (!notes.length) {
               notes = cp.execSync('git log --pretty=%s -n 5').toString().trim().split('\n').filter(Boolean);
             }
-            const info = { version: id, url, notes, publishedAt: new Date().toISOString().slice(0, 10) };
+            const info = { version: id, url: urls[0], urls, notes, publishedAt: new Date().toISOString().slice(0, 10) };
             fs.writeFileSync('out/hot-update.json', JSON.stringify(info, null, 2));
             console.log('热更新清单:', JSON.stringify(info, null, 2));
           "
           ls -la out/
+
+      # GitHub Releases 的附件（objects.githubusercontent.com）在国内经常拉不到，
+      # 而 raw.githubusercontent.com 实测是通的。所以把热更新包同步放进仓库的
+      # hot 分支：孤儿分支、每次构建整体覆盖 force push，不会让仓库历史无限膨胀。
+      - name: 热更新包放进 hot 分支（raw 直连用）
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          BUILD_ID=$(cat .build_id)
+          REPO_DIR=$(mktemp -d)
+          cd "$REPO_DIR"
+          git init -q -b hot
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/shuishen49/grow-with-stars.git"
+          cp "$GITHUB_WORKSPACE/out/hot-bundle.zip" .
+          cp "$GITHUB_WORKSPACE/out/hot-update.json" .
+          git add -A
+          git commit -q -m "热更新包 $BUILD_ID"
+          git push -q origin hot --force
+          echo "hot 分支已更新（$BUILD_ID）"
 
       - name: 同步到安卓工程
         run: npx cap sync android

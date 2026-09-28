@@ -107,9 +107,14 @@ export default function App() {
       return
     }
     let alive = true
-    checkForUpdate().then((info) => {
-      if (alive && info) setUpdateInfo(info)
-    })
+    checkForUpdate()
+      .then((info) => {
+        if (alive && info) setUpdateInfo(info)
+      })
+      .catch(() => {
+        // 启动时的自动检查失败就算了（可能断网），别打扰使用；
+        // 用户手动点「检查更新」时才把具体原因报出来
+      })
     return () => {
       alive = false
     }
@@ -124,8 +129,8 @@ export default function App() {
       } else {
         showToast('已经是最新版本了 🎉')
       }
-    } catch {
-      showToast('检查更新失败，检查下网络')
+    } catch (e) {
+      showToast('检查更新失败：' + (e instanceof Error ? e.message : String(e)))
     } finally {
       setCheckingUpdate(false)
     }
