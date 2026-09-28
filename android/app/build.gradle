@@ -16,7 +16,26 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // 调试签名固定成仓库里那把 debug.keystore：
+    // 否则每次构建都会现场生成新签名，覆盖安装会报 INSTALL_FAILED_UPDATE_INCOMPATIBLE。
+    // 文件不存在时（比如第一次 clone 还没生成）就退回 AGP 默认的调试签名。
+    signingConfigs {
+        debug {
+            def ks = file('debug.keystore')
+            if (ks.exists()) {
+                storeFile ks
+                storePassword 'android'
+                keyAlias 'androiddebugkey'
+                keyPassword 'android'
+            }
+        }
+    }
     buildTypes {
+        debug {
+            if (file('debug.keystore').exists()) {
+                signingConfig signingConfigs.debug
+            }
+        }
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
