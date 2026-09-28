@@ -8,6 +8,8 @@ interface Props {
   authEnabled: boolean
   refreshing: boolean
   onRefresh: () => void
+  /** 打开「关于 / 版本信息」弹窗 */
+  onAbout: () => void
   onExitDemo: () => void
   onLogin: () => void
   onLogout: () => void
@@ -32,6 +34,7 @@ export default function AppHeader({
   authEnabled,
   refreshing,
   onRefresh,
+  onAbout,
   onExitDemo,
   onLogin,
   onLogout,
@@ -60,14 +63,22 @@ export default function AppHeader({
         )}
       </div>
 
-      {/* 右侧操作区：吉祥物排在按钮前面（流式布局，永远不会盖住按钮） */}
+      {/* 右边那颗星（原来的装饰图）现在是「关于 / 版本信息」入口 */}
       <div className="relative z-10 ml-auto flex items-center gap-2 tb:gap-3">
-        <img
-          src="/ui/mascot-books.webp"
-          alt=""
-          aria-hidden
-          className="pointer-events-none hidden h-14 w-14 select-none object-contain tb:block"
-        />
+        <button
+          onClick={onAbout}
+          title="关于 · 版本信息"
+          aria-label="关于与版本信息"
+          className="tap flex shrink-0 flex-col items-center gap-0.5 rounded-card px-1.5 py-1 hover:bg-white/70"
+        >
+          <img
+            src="/ui/mascot-books.webp"
+            alt=""
+            aria-hidden
+            className="h-11 w-11 select-none object-contain tb:h-14 tb:w-14"
+          />
+          <span className="text-[10px] font-medium leading-none text-mut">版本</span>
+        </button>
         <button
           onClick={onRefresh}
           title="刷新"

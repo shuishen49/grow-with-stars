@@ -30,6 +30,7 @@ import ScorePage from './components/ScorePage'
 import LogPage from './components/LogPage'
 import RedeemPage from './components/RedeemPage'
 import RulesPage from './components/RulesPage'
+import AboutModal from './components/AboutModal'
 import UpdateModal from './components/UpdateModal'
 import SetupGuide from './components/SetupGuide'
 import SideNav from './components/SideNav'
@@ -72,6 +73,8 @@ export default function App() {
   const [installedInfo, setInstalledInfo] = useState<HotUpdateInfo | null>(null)
   const [updateBusy, setUpdateBusy] = useState(false)
   const [checkingUpdate, setCheckingUpdate] = useState(false)
+  /** 「关于 · 版本信息」弹窗：顶栏那颗星点开的 */
+  const [aboutOpen, setAboutOpen] = useState(false)
 
   const authEnabled = supabaseConfigured && !useMock
   /** 演示 → 云端（已登录）→ 本机（未登录也能用） */
@@ -125,6 +128,24 @@ export default function App() {
     try {
       const info = await checkForUpdate()
       if (info) {
+        setUpdateInfo(info)
+      } else {
+        showToast('已经是最新版本了 🎉')
+      }
+    } catch (e) {
+      showToast('检查更新失败：' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }, [showToast])
+
+  /** 「关于」弹窗里的检查更新：发现有版本时把弹窗让给更新提示，避免两层叠着 */
+  const handleCheckUpdateFromAbout = useCallback(async () => {
+    setCheckingUpdate(true)
+    try {
+      const info = await checkForUpdate()
+      if (info) {
+        setAboutOpen(false)
         setUpdateInfo(info)
       } else {
         showToast('已经是最新版本了 🎉')
@@ -412,6 +433,7 @@ export default function App() {
             authEnabled={authEnabled}
             refreshing={refreshing}
             onRefresh={refresh}
+            onAbout={() => setAboutOpen(true)}
             onExitDemo={exitDemo}
             onLogin={handleLoginClick}
             onLogout={handleLogout}
@@ -577,6 +599,16 @@ export default function App() {
           </>
         )}
       </Modal>
+
+      {/* 顶栏那颗星：版本信息 + 开发者 + 检查更新 */}
+      <AboutModal
+        open={aboutOpen}
+        onClose={() => setAboutOpen(false)}
+        mode={mode}
+        email={session?.user?.email}
+        checking={checkingUpdate}
+        onCheckUpdate={handleCheckUpdateFromAbout}
+      />
 
       {/* 热更新：更新前展示「改了什么」；更新完展示「本次更新内容」 */}
       <UpdateModal
