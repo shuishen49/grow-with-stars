@@ -13,11 +13,20 @@ import {
 import { sameWeek, todayStr } from './lib/dates'
 import { getSession, onAuthChange, signOut } from './lib/auth'
 import { supabaseConfigured, useMock } from './lib/supabase'
+import { requireParent } from './lib/parentLock'
+import {
+  applyHotUpdate,
+  checkForUpdate,
+  markBundleReady,
+  takePendingNotes,
+  type HotUpdateInfo,
+} from './lib/hotUpdate'
 import AuthPage from './components/AuthPage'
 import ScorePage from './components/ScorePage'
 import LogPage from './components/LogPage'
 import RedeemPage from './components/RedeemPage'
 import RulesPage from './components/RulesPage'
+import UpdateModal from './components/UpdateModal'
 import SetupGuide from './components/SetupGuide'
 import SideNav from './components/SideNav'
 import AppHeader from './components/AppHeader'
@@ -49,6 +58,12 @@ export default function App() {
   const [toastMsg, setToastMsg] = useState<ToastMsg | null>(null)
   const [refreshing, setRefreshing] = useState(false)
 
+  /** 热更新：待安装的新版本 / 刚装完要展示的更新说明 */
+  const [updateInfo, setUpdateInfo] = useState<HotUpdateInfo | null>(null)
+  const [installedInfo, setInstalledInfo] = useState<HotUpdateInfo | null>(null)
+  const [updateBusy, setUpdateBusy] = useState(false)
+  const [checkingUpdate, setCheckingUpdate] = useState(false)
+
   const authEnabled = supabaseConfigured && !useMock
   /** 演示 → 云端（已登录）→ 本机（未登录也能用） */
   const mode: SourceMode = demo ? 'demo' : session ? 'cloud' : 'local'
@@ -56,6 +71,68 @@ export default function App() {
   const showToast = useCallback((text: string) => {
     setToastMsg({ text, id: Date.now() })
   }, [])
+
+  /**
+   * 家长锁守门：会改数据的操作（打分保存/清空、兑换、撤销）先验证一次。
+   * 没开家长锁时 requireParent 直接放行，日常使用完全不受影响。
+   */
+  const guard = useCallback(
+    async (action: string): Promise<boolean> => {
+      const r = await requireParent(action)
+      if (!r.ok) {
+        showToast(r.msg ?? '验证失败，没有改动')
+        return false
+      }
+      return true
+    },
+    [showToast],
+  )
+
+  // 启动后：报平安（否则新包会被回滚）+ 自动检查一次更新
+  useEffect(() => {
+    markBundleReady()
+    // 刚热更新完 → 弹一次「本次更新了什么」
+    const done = takePendingNotes()
+    if (done) {
+      setInstalledInfo(done)
+      return
+    }
+    let alive = true
+    checkForUpdate().then((info) => {
+      if (alive && info) setUpdateInfo(info)
+    })
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const handleCheckUpdate = useCallback(async () => {
+    setCheckingUpdate(true)
+    try {
+      const info = await checkForUpdate()
+      if (info) {
+        setUpdateInfo(info)
+      } else {
+        showToast('已经是最新版本了 🎉')
+      }
+    } catch {
+      showToast('检查更新失败，检查下网络')
+    } finally {
+      setCheckingUpdate(false)
+    }
+  }, [showToast])
+
+  const handleApplyUpdate = useCallback(async () => {
+    if (!updateInfo) return
+    setUpdateBusy(true)
+    try {
+      // 注意：这一步成功后 App 会立刻重启，后面的代码不会执行
+      await applyHotUpdate(updateInfo)
+    } catch (e) {
+      setUpdateBusy(false)
+      showToast('更新失败：' + (e instanceof Error ? e.message : String(e)))
+    }
+  }, [updateInfo, showToast])
 
   // 读取 / 监听登录状态
   useEffect(() => {
@@ -162,6 +239,7 @@ export default function App() {
   )
 
   const handleSave = async (entries: DayEntry[]) => {
+    if (!(await guard('保存打分'))) return
     const store = getStore(mode)
     const oldBalance = balance
     const oldDayDelta = dayRow?.delta ?? 0
@@ -178,6 +256,7 @@ export default function App() {
   }
 
   const handleClear = async () => {
+    if (!(await guard('清空当天记录'))) return
     const store = getStore(mode)
     try {
       await store.saveDayScore(scoreDate, [])
@@ -189,6 +268,7 @@ export default function App() {
   }
 
   const handleRedeem = async (detail: string, points: number): Promise<boolean> => {
+    if (!(await guard('兑换奖励'))) return false
     const today = todayStr()
     const weekUsed = (rows ?? []).some((r) => r.kind === 'redeem' && sameWeek(r.entry_date, today))
     if (weekUsed) {
@@ -212,6 +292,7 @@ export default function App() {
   }
 
   const handleUndo = async (row: LedgerRow) => {
+    if (!(await guard('撤销兑换'))) return
     const store = getStore(mode)
     try {
       await store.deleteRow(row.id)
@@ -296,7 +377,13 @@ export default function App() {
               {tab === 'redeem' && (
                 <RedeemPage rows={rows} balance={balance} onRedeem={handleRedeem} onUndo={handleUndo} />
               )}
-              {tab === 'rules' && <RulesPage />}
+              {tab === 'rules' && (
+                <RulesPage
+                  onToast={showToast}
+                  onCheckUpdate={handleCheckUpdate}
+                  checking={checkingUpdate}
+                />
+              )}
             </main>
           ) : null}
         </div>
@@ -329,6 +416,21 @@ export default function App() {
           暂不，先只看云端数据
         </button>
       </Modal>
+
+      {/* 热更新：更新前展示「改了什么」；更新完展示「本次更新内容」 */}
+      <UpdateModal
+        info={updateInfo}
+        busy={updateBusy}
+        onConfirm={handleApplyUpdate}
+        onLater={() => setUpdateInfo(null)}
+      />
+      <UpdateModal
+        info={installedInfo}
+        busy={false}
+        installed
+        onConfirm={() => setInstalledInfo(null)}
+        onLater={() => setInstalledInfo(null)}
+      />
 
       <Toast msg={toastMsg} />
     </div>

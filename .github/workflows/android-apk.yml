@@ -39,8 +39,53 @@ jobs:
             echo "Supabase 密钥已就位，这个包可以登录并云同步。"
           fi
 
+      # 版本号打进网页里（VITE_BUILD_ID），热更新就靠它判断「是不是最新版」：
+      # 刚装的 APK 自带的版本号和清单一致 → 不提示更新；之后的构建才提示。
       - name: 构建网页
-        run: npm run build
+        run: |
+          set -e
+          export VITE_BUILD_ID="$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+          echo "本次构建版本: $VITE_BUILD_ID"
+          echo "$VITE_BUILD_ID" > .build_id
+          npm run build
+
+      # 热更新包：把网页成品打成 zip，再写一份带「更新内容」的清单。
+      # App 启动或手动点「检查更新」时读这个清单，有新版本就先把内容显示给用户看。
+      - name: 打热更新包
+        env:
+          GITHUB_REF_TYPE: ${{ github.ref_type }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -e
+          mkdir -p out
+          (cd dist && zip -qr ../out/hot-bundle.zip .)
+          node -e "
+            const fs = require('fs');
+            const cp = require('child_process');
+            const id = fs.readFileSync('.build_id', 'utf8').trim();
+            const isTag = process.env.GITHUB_REF_TYPE === 'tag';
+            const base = 'https://github.com/shuishen49/grow-with-stars/releases';
+            const url = isTag
+              ? base + '/download/' + process.env.GITHUB_REF_NAME + '/hot-bundle.zip'
+              : base + '/latest/download/hot-bundle.zip';
+            // 更新说明：仓库里有 HOTUPDATE.md 就用它（每行一条），否则退回最近几条提交信息
+            let notes = [];
+            try {
+              notes = fs.readFileSync('HOTUPDATE.md', 'utf8').split('\n')
+                .map(s => s.trim())
+                // 跳过标题和注释行，只留「- xxx」这种真正的更新条目
+                .filter(s => s && !s.startsWith('#') && !s.startsWith('<!--'))
+                .map(s => s.replace(/^[-*]\s*/, '').trim())
+                .filter(Boolean);
+            } catch (e) { /* 没有这个文件就忽略 */ }
+            if (!notes.length) {
+              notes = cp.execSync('git log --pretty=%s -n 5').toString().trim().split('\n').filter(Boolean);
+            }
+            const info = { version: id, url, notes, publishedAt: new Date().toISOString().slice(0, 10) };
+            fs.writeFileSync('out/hot-update.json', JSON.stringify(info, null, 2));
+            console.log('热更新清单:', JSON.stringify(info, null, 2));
+          "
+          ls -la out/
 
       - name: 同步到安卓工程
         run: npx cap sync android
@@ -158,7 +203,12 @@ jobs:
             # latest 是滚动标签：先删掉旧的再建新的（正式 tag 不删）
             gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
           fi
+          # 热更新用的两个文件也一起发（App 靠它们实现不重装升级）
+          FILES="out/FamilyPoints-${DATE}-debug.apk out/hot-bundle.zip out/hot-update.json"
+          if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
+            FILES="$FILES out/FamilyPoints-${DATE}-release.apk"
+          fi
           gh release create "$TAG" $PRE \
             --title "$TITLE" \
-            --notes "GitHub Actions 自动打包（$(date '+%Y-%m-%d %H:%M') UTC，源码 ${GITHUB_SHA::7}）。调试版可直接安装；未配置 Supabase 密钥时打出来的是「本机模式」，能记账看日历但不能登录云同步。平板建议横屏，且分辨率需达 1100 CSS 像素以上才显示双栏布局。" \
-            out/*.apk
+            --notes "GitHub Actions 自动打包（$(date '+%Y-%m-%d %H:%M') UTC，源码 ${GITHUB_SHA::7}）。调试版可直接安装；未配置 Supabase 密钥时打出来的是「本机模式」，能记账看日历但不能登录云同步。平板建议横屏，且分辨率需达 1100 CSS 像素以上才显示双栏布局。hot-bundle.zip + hot-update.json 是热更新用的，装过 App 之后点「规则 → 检查更新」即可升级。" \
+            $FILES

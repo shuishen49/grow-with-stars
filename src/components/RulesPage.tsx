@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CATEGORIES, REDEEM_RULE_TEXT, REDEEM_TIERS } from '../data/rules'
+import SettingsCard from './SettingsCard'
 
 /** 分类 id → 素材包图标（与打分页一致） */
 const CAT_ICON: Record<string, string> = {
@@ -13,7 +14,13 @@ const CAT_ICON: Record<string, string> = {
  * 规则手风琴（RuleAccordion）
  * 展开/折叠只影响显示，不改变任何规则与分值；默认全部展开（规则页的目的就是查规则）。
  */
-export default function RulesPage() {
+interface Props {
+  onToast: (text: string) => void
+  onCheckUpdate: () => void
+  checking: boolean
+}
+
+export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
   const [open, setOpen] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(CATEGORIES.map((c) => [c.id, true])),
   )
@@ -129,6 +136,8 @@ export default function RulesPage() {
             </div>
           )}
         </section>
+        {/* 家长锁 + 版本更新 */}
+        <SettingsCard onToast={onToast} onCheckUpdate={onCheckUpdate} checking={checking} />
       </div>
 
       {/* 右栏：阅读星星装饰 + 小结 */}

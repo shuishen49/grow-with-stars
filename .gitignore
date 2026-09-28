@@ -22,3 +22,6 @@ android/.idea/
 # 例外：调试签名 keystore 要进仓库，否则每次打包签名都变、没法覆盖安装。
 # 它只是调试版签名，不含任何机密。
 !android/debug.keystore
+
+# 构建时生成的版本号文件
+.build_id
