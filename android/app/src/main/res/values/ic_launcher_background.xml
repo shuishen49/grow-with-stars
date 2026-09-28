@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#FFFFFF</color>
+    <!-- 和徽章同色（brand 紫 #7052F5）：自适应图标被系统裁成圆形/方圆角时，
+         露出来的边缘也是紫色，看不出接缝 -->
+    <color name="ic_launcher_background">#7052F5</color>
 </resources>

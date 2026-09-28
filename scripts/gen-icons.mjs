@@ -1,4 +1,9 @@
-// 生成 PWA 图标（无第三方依赖，纯像素绘制 + PNG 编码）
+// ⚠️ 注意：public/icons 现在用的是「金色勋章 + 五角星」的 Logo 图（紫色徽章 + 金色勋章），
+// 源文件是 public/icons/logo-1024.png，各尺寸由它缩放而来。
+// 再跑一次 `npm run gen:icons` 会把 Logo 覆盖回这个脚本画的「紫方块 + 白星」旧图标！
+// 要换 Logo 请改 logo-1024.png 后重新缩放，不要直接跑这个脚本。
+//
+// 原始用途：生成 PWA 图标（无第三方依赖，纯像素绘制 + PNG 编码）
 import { deflateSync } from 'node:zlib'
 import { mkdirSync, writeFileSync } from 'node:fs'
 
