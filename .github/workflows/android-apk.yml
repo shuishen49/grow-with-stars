@@ -51,6 +51,15 @@ jobs:
           distribution: temurin
           java-version: '21'
 
+      # runner 每次都会现场生成一把新的 debug keystore，导致每份 APK 签名都不同，
+      # 覆盖安装会报 INSTALL_FAILED_UPDATE_INCOMPATIBLE，只能卸载重装（数据全丢）。
+      # 这里把调试签名缓存起来，之后每次构建都用同一把，可以直接覆盖升级。
+      - name: 固定调试签名（让新版能直接覆盖安装）
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: android-debug-keystore-v1
+
       - name: 接受安卓 SDK 许可并补装组件
         run: |
           yes | ${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
