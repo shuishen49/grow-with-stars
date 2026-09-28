@@ -16,12 +16,16 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
-    // 调试签名固定成仓库里那把 debug.keystore：
+    // 调试签名固定成仓库里那把 android/debug.keystore：
     // 否则每次构建都会现场生成新签名，覆盖安装会报 INSTALL_FAILED_UPDATE_INCOMPATIBLE。
     // 文件不存在时（比如第一次 clone 还没生成）就退回 AGP 默认的调试签名。
+    //
+    // ⚠️ 路径必须用 rootProject.file：Gradle 的 file() 是相对「模块目录」的，
+    // 这里就是 android/app，而 keystore 放在 android/ 下。写成 file('debug.keystore')
+    // 找的是 android/app/debug.keystore，永远不存在，于是签名一直没固定住（踩过）。
     signingConfigs {
         debug {
-            def ks = file('debug.keystore')
+            def ks = rootProject.file('debug.keystore')
             if (ks.exists()) {
                 storeFile ks
                 storePassword 'android'
@@ -32,7 +36,7 @@ android {
     }
     buildTypes {
         debug {
-            if (file('debug.keystore').exists()) {
+            if (rootProject.file('debug.keystore').exists()) {
                 signingConfig signingConfigs.debug
             }
         }

@@ -137,6 +137,25 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
 
+      # 防复发：之前 build.gradle 里把路径写成 file('debug.keystore')，
+      # Gradle 会去 android/app 下找，永远找不到，于是每次都用临时签名，
+      # 覆盖安装一直报 INSTALL_FAILED_UPDATE_INCOMPATIBLE。这里对着证书指纹核一遍。
+      - name: 确认 APK 用的是仓库里那把签名
+        working-directory: android
+        run: |
+          KS_CERT=$(keytool -list -v -keystore debug.keystore -storepass android 2>/dev/null \
+            | grep -i 'SHA256:' | head -1 | sed 's/.*SHA256:[[:space:]]*//' | tr -d ' :' | tr 'A-Z' 'a-z')
+          APK_CERT=$(${ANDROID_HOME}/build-tools/36.0.0/apksigner verify --print-certs \
+            app/build/outputs/apk/debug/app-debug.apk 2>/dev/null \
+            | grep -i 'SHA-256 digest' | head -1 | sed 's/.*: //' | tr -d ' :' | tr 'A-Z' 'a-z')
+          echo "keystore: $KS_CERT"
+          echo "apk     : $APK_CERT"
+          if [ -n "$KS_CERT" ] && [ "$KS_CERT" = "$APK_CERT" ]; then
+            echo "✓ 这个 APK 用的是仓库里那把 debug.keystore，可以直接覆盖安装"
+          else
+            echo "::warning::APK 签名和仓库 keystore 不一致，覆盖安装会失败。请检查 android/app/build.gradle 里的 rootProject.file('debug.keystore')。"
+          fi
+
       - name: 取个带日期的文件名
         id: name
         run: echo "file=家庭积分本-$(date +%Y%m%d)-debug.apk" >> $GITHUB_OUTPUT
