@@ -83,6 +83,30 @@ def certs_from_signed_data(signer):
     return out
 
 
+def der_scan(blob):
+    """兜底：结构化解析偶尔会踩到新的 nested 字段，直接在块里扫 DER 证书头。
+
+    证书一定是 DER 编码的 SEQUENCE，开头是 30 82 <两字节长度> 30 82 …
+    """
+    out = []
+    p = 0
+    while True:
+        p = blob.find(b'\x30\x82', p)
+        if p < 0 or p + 4 > len(blob):
+            break
+        if blob[p + 4:p + 6] != b'\x30\x82':
+            p += 1
+            continue
+        ln = struct.unpack_from('>H', blob, p + 2)[0]
+        end = p + 4 + ln
+        if ln < 64 or end > len(blob):
+            p += 1
+            continue
+        out.append(hashlib.sha256(blob[p:end]).hexdigest()[:16])
+        p = end
+    return out
+
+
 def main(path):
     data = open(path, 'rb').read()
     block = signing_block(data)
@@ -90,7 +114,7 @@ def main(path):
     for pid, blob in pairs(block):
         if pid in (V2, V3):
             name = 'v2' if pid == V2 else 'v3'
-            cs = certs_from_signer(blob)
+            cs = certs_from_signer(blob) or der_scan(blob)
             print(f'{path}  {name} 证书: {cs}')
             found = True
     if not found:

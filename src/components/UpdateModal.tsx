@@ -1,5 +1,5 @@
 import Modal from './Modal'
-import type { HotUpdateInfo } from '../lib/hotUpdate'
+import { humanSize, type HotUpdateInfo } from '../lib/hotUpdate'
 
 interface Props {
   info: HotUpdateInfo | null
@@ -14,6 +14,7 @@ interface Props {
 export default function UpdateModal({ info, busy, installed = false, onConfirm, onLater }: Props) {
   if (!info) return null
   const notes = info.notes.length > 0 ? info.notes : ['（这次没写更新说明，一般是小修小补）']
+  const pkg = humanSize(info.size)
 
   return (
     <Modal open onClose={busy ? () => {} : onLater} title={installed ? '✅ 更新完成' : '🆕 有新版本'}>
@@ -39,7 +40,11 @@ export default function UpdateModal({ info, busy, installed = false, onConfirm, 
       <p className="mt-3 rounded-ctl bg-canvas px-4 py-2.5 text-xs leading-6 text-mut">
         {installed
           ? '如果哪里看着不对，可以在「规则」页里点「检查更新」再拉一次。'
-          : '更新只换界面和逻辑，不动你记的分数；更新完会自动重启一次。'}
+          : busy
+            ? '正在下载并替换界面包，完成后 App 会自动重启一次。网络慢的话可能要等半分钟，别退出。'
+            : `更新只换界面和逻辑，不动你记的分数；${
+                pkg ? `要下 ${pkg}，` : ''
+              }更新完会自动重启一次。`}
       </p>
 
       <div className="mt-4 flex gap-2">
@@ -57,7 +62,7 @@ export default function UpdateModal({ info, busy, installed = false, onConfirm, 
           disabled={busy}
           className="btn-primary flex min-h-[48px] flex-1 items-center justify-center text-base disabled:opacity-40"
         >
-          {installed ? '知道了' : busy ? '更新中…' : '立即更新'}
+          {installed ? '知道了' : busy ? '下载中…' : '立即更新'}
         </button>
       </div>
     </Modal>

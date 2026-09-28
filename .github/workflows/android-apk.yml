@@ -84,7 +84,9 @@ jobs:
             if (!notes.length) {
               notes = cp.execSync('git log --pretty=%s -n 5').toString().trim().split('\n').filter(Boolean);
             }
-            const info = { version: id, url: urls[0], urls, notes, publishedAt: new Date().toISOString().slice(0, 10) };
+            // size 只是给界面上「要下多大」一个诚实的提示，错的也不影响更新
+            const size = fs.statSync('out/hot-bundle.zip').size;
+            const info = { version: id, url: urls[0], urls, notes, publishedAt: new Date().toISOString().slice(0, 10), size };
             fs.writeFileSync('out/hot-update.json', JSON.stringify(info, null, 2));
             console.log('热更新清单:', JSON.stringify(info, null, 2));
           "

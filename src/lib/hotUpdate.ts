@@ -32,6 +32,15 @@ export interface HotUpdateInfo {
   urls?: string[]
   notes: string[]
   publishedAt: string
+  /** 更新包字节数，只用来告诉用户「要下多大」，没有也不影响更新 */
+  size?: number
+}
+
+/** 2.8 MB 这种写法，给用户看的下载体量 */
+export function humanSize(bytes?: number): string {
+  if (!bytes || bytes <= 0) return ''
+  if (bytes < 1024 * 1024) return Math.max(1, Math.round(bytes / 1024)) + ' KB'
+  return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
 /** 打包时由 GitHub Actions 注入，形如 20260928-1a2b3c4 */
@@ -51,28 +60,59 @@ export async function markBundleReady(): Promise<void> {
   }
 }
 
-async function fetchOneManifest(url: string, timeoutMs = 9000): Promise<HotUpdateInfo> {
-  const ctrl = new AbortController()
-  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
-  try {
-    // ?t= 用来绕过 CDN 对同一 URL 的缓存，保证拿到的是最新清单
-    const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`, {
-      cache: 'no-store',
-      signal: ctrl.signal,
-    })
-    if (!res.ok) throw new Error('HTTP ' + res.status)
-    const j = (await res.json()) as Partial<HotUpdateInfo>
-    if (!j.version || !j.url) throw new Error('清单内容不完整')
-    return {
-      version: j.version,
-      url: j.url,
-      urls: Array.isArray(j.urls) ? (j.urls as string[]) : undefined,
-      notes: Array.isArray(j.notes) ? j.notes : [],
-      publishedAt: j.publishedAt ?? '',
+/**
+ * 清单取不到真的是会发生的：国内网络访问 GitHub 时快时慢，
+ * 2026-09-28 实测同一个 wifi 下 raw 有时 0.5 秒、有时 9 秒都拿不到，
+ * 更新包本体（约 2.8 MB）更是要十几秒。所以超时放到 15 秒，
+ * 并且每个源失败后再试一次 —— 一次抖动就把用户判成「连不上」太冤了。
+ */
+const MANIFEST_TIMEOUT_MS = 15000
+const MANIFEST_RETRY = 2
+
+/** 把多次失败的原因合成一句人话；同样的报错只说一遍 */
+function joinErrors(errs: string[]): string {
+  const seen = new Set<string>()
+  const uniq = errs.filter((e) => {
+    const k = e.trim()
+    if (!k || seen.has(k)) return false
+    seen.add(k)
+    return true
+  })
+  const shown = uniq.slice(0, 2).join('；')
+  return uniq.length > 0 ? shown : '未知原因'
+}
+
+async function fetchOneManifest(url: string): Promise<HotUpdateInfo> {
+  let lastErr: unknown = null
+  for (let attempt = 1; attempt <= MANIFEST_RETRY; attempt++) {
+    const ctrl = new AbortController()
+    const timer = setTimeout(() => ctrl.abort(), MANIFEST_TIMEOUT_MS)
+    try {
+      // ?t= 用来绕过 CDN 对同一 URL 的缓存，保证拿到的是最新清单
+      const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`, {
+        cache: 'no-store',
+        signal: ctrl.signal,
+      })
+      if (!res.ok) throw new Error('HTTP ' + res.status)
+      const j = (await res.json()) as Partial<HotUpdateInfo>
+      if (!j.version || !j.url) throw new Error('清单内容不完整')
+      return {
+        version: j.version,
+        url: j.url,
+        urls: Array.isArray(j.urls) ? (j.urls as string[]) : undefined,
+        notes: Array.isArray(j.notes) ? j.notes : [],
+        publishedAt: j.publishedAt ?? '',
+        size: typeof j.size === 'number' ? j.size : undefined,
+      }
+    } catch (e) {
+      lastErr = e
+      // 第一次失败多半是网络抖一下，隔一秒再试一次
+      if (attempt < MANIFEST_RETRY) await new Promise((r) => setTimeout(r, 1000))
+    } finally {
+      clearTimeout(timer)
     }
-  } finally {
-    clearTimeout(timer)
   }
+  throw lastErr instanceof Error ? lastErr : new Error(String(lastErr))
 }
 
 /** 挨个源试清单；全都失败就抛错，让界面提示「连不上」而不是误报「已是最新」 */
@@ -85,7 +125,7 @@ export async function fetchUpdateInfo(): Promise<HotUpdateInfo> {
       errs.push(e instanceof Error ? e.message : String(e))
     }
   }
-  throw new Error('更新服务器连不上（' + errs.join('；') + '）')
+  throw new Error('更新服务器连不上（' + joinErrors(errs) + '）')
 }
 
 /** 返回可用的新版本；没有就返回 null。清单取不到会抛错（网络问题） */
