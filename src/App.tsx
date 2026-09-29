@@ -476,6 +476,7 @@ export default function App() {
                   dayRow={dayRow}
                   onSave={handleSave}
                   onClear={handleClear}
+                  guard={guard}
                 />
               )}
               {tab === 'log' && (

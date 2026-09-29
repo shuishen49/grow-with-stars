@@ -1,7 +1,15 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { CATEGORIES, NAMED_DELTA, QUICK_ITEMS } from '../data/rules'
 import type { DayEntry, LedgerRow } from '../lib/store'
 import { parseDetail } from '../lib/store'
+import {
+  addCustomRule,
+  loadCatOrder,
+  loadCustomRules,
+  removeCustomRule,
+  saveCatOrder,
+  type CustomRule,
+} from '../lib/customRules'
 import { addDays, shortDate, todayStr, weekdayCN } from '../lib/dates'
 
 interface Props {
@@ -10,6 +18,8 @@ interface Props {
   dayRow: LedgerRow | undefined
   onSave: (entries: DayEntry[]) => Promise<void>
   onClear: () => Promise<void>
+  /** 家长锁守门：进入「管理」前验证一次；没开家长锁就直接放行 */
+  guard: (action: string) => Promise<boolean>
 }
 
 export function fmtDelta(n: number): string {
@@ -30,32 +40,128 @@ function ItemChip({
   delta,
   selected,
   onClick,
+  onDelete,
 }: {
   name: string
   delta: number
   selected: boolean
   onClick: () => void
+  /** 给了这个才会显示删除小叉（只在管理模式下给） */
+  onDelete?: () => void
 }) {
   const positive = delta > 0
   return (
-    <button
-      aria-pressed={selected}
-      onClick={onClick}
-      className={`tap flex min-h-[52px] w-full items-center justify-between gap-2 rounded-ctl border px-4 py-2.5 text-left text-[15px] leading-snug ${
-        selected
-          ? 'border-brand bg-brand-soft font-bold text-ink shadow-[inset_0_0_0_1px_#7052F5]'
-          : 'border-line bg-white text-ink hover:border-brand/40'
-      }`}
-    >
-      <span className="min-w-0 flex-1">{name}</span>
-      <span
-        className={`shrink-0 rounded-full px-2.5 py-0.5 text-sm font-bold tabular-nums ${
-          positive ? 'bg-rosy text-posdeep' : 'bg-mint text-negdeep'
+    <div className="relative">
+      <button
+        aria-pressed={selected}
+        onClick={onClick}
+        className={`tap flex min-h-[52px] w-full items-center justify-between gap-2 rounded-ctl border px-4 py-2.5 text-left text-[15px] leading-snug ${
+          selected
+            ? 'border-brand bg-brand-soft font-bold text-ink shadow-[inset_0_0_0_1px_#7052F5]'
+            : 'border-line bg-white text-ink hover:border-brand/40'
         }`}
       >
-        {fmtDelta(delta)}
-      </span>
-    </button>
+        <span className={`min-w-0 flex-1 ${onDelete ? 'pr-5' : ''}`}>{name}</span>
+        <span
+          className={`shrink-0 rounded-full px-2.5 py-0.5 text-sm font-bold tabular-nums ${
+            positive ? 'bg-rosy text-posdeep' : 'bg-mint text-negdeep'
+          }`}
+        >
+          {fmtDelta(delta)}
+        </span>
+      </button>
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          aria-label={`删除自定义项 ${name}`}
+          className="tap absolute -right-1.5 -top-1.5 flex h-7 w-7 items-center justify-center rounded-full border border-line bg-white text-xs font-bold text-mut shadow-card hover:text-posdeep"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  )
+}
+
+/** 分类里的「＋」展开出来的添加行：名字 + 分值 + 奖/罚 */
+function CategoryAdd({
+  catName,
+  onAdd,
+  onCancel,
+}: {
+  catName: string
+  onAdd: (name: string, delta: number) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState('')
+  const [pts, setPts] = useState(1)
+  const [sign, setSign] = useState<1 | -1>(1)
+
+  const submit = () => {
+    const n = name.trim()
+    if (!n) return
+    onAdd(n, sign * pts)
+    setName('')
+  }
+
+  return (
+    <div className="mt-4 rounded-ctl border border-dashed border-brand/50 bg-brand-soft/40 p-4">
+      <div className="mb-2 text-sm font-bold text-brand">往「{catName}」里加一项</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder="如：帮忙做家务"
+          className="min-w-0 flex-1 rounded-ctl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none placeholder:text-mut/60 focus:border-brand"
+        />
+        <div className="flex items-center gap-1 rounded-ctl bg-white p-1">
+          <button
+            aria-label="减少分值"
+            className="tap h-9 w-9 rounded-lg text-lg font-bold text-mut"
+            onClick={() => setPts((p) => Math.max(1, p - 1))}
+          >
+            −
+          </button>
+          <span className="w-7 text-center font-bold tabular-nums">{pts}</span>
+          <button
+            aria-label="增加分值"
+            className="tap h-9 w-9 rounded-lg text-lg font-bold text-mut"
+            onClick={() => setPts((p) => Math.min(50, p + 1))}
+          >
+            ＋
+          </button>
+        </div>
+        <div className="flex rounded-ctl bg-white p-1">
+          <button
+            aria-pressed={sign === 1}
+            className={`tap rounded-lg px-3.5 py-1.5 text-sm font-bold ${sign === 1 ? 'bg-pos text-white' : 'text-mut'}`}
+            onClick={() => setSign(1)}
+          >
+            奖
+          </button>
+          <button
+            aria-pressed={sign === -1}
+            className={`tap rounded-lg px-3.5 py-1.5 text-sm font-bold ${sign === -1 ? 'bg-neg text-white' : 'text-mut'}`}
+            onClick={() => setSign(-1)}
+          >
+            罚
+          </button>
+        </div>
+        <button
+          disabled={!name.trim()}
+          onClick={submit}
+          className="btn-primary px-4 py-2.5 text-[15px] disabled:opacity-40"
+        >
+          保存
+        </button>
+        <button onClick={onCancel} className="tap px-3 py-2 text-sm font-medium text-mut">
+          取消
+        </button>
+      </div>
+      <p className="mt-1.5 text-xs text-mut">加好后它会一直留在这个分类里，每天都能勾。</p>
+    </div>
   )
 }
 
@@ -73,7 +179,12 @@ function CustomAdd({ onAdd }: { onAdd: (name: string, delta: number) => void }) 
 
   return (
     <div className="card p-5">
-      <div className="mb-3 flex items-center gap-2 font-bold">✏️ 自定义加扣分</div>
+      <div className="mb-3 flex flex-wrap items-baseline gap-2 font-bold">
+        <span>✏️ 临时自定义</span>
+        <span className="text-xs font-normal text-mut">
+          （只对今天这一次有效；想每天都能勾，用「管理」加到对应分类里）
+        </span>
+      </div>
       <div className="flex flex-wrap items-center gap-2">
         <input
           value={name}
@@ -123,10 +234,76 @@ function CustomAdd({ onAdd }: { onAdd: (name: string, delta: number) => void }) 
   )
 }
 
-export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear }: Props) {
+export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear, guard }: Props) {
   const [selected, setSelected] = useState<Record<string, number>>({})
   const [openCats, setOpenCats] = useState<Record<string, boolean>>({})
   const [saving, setSaving] = useState(false)
+
+  /** 管理模式：只有点「管理」之后才露出 ➕ 和删除叉、才能拖动排序 */
+  const [manage, setManage] = useState(false)
+  const [adding, setAdding] = useState<string | null>(null)
+  const [custom, setCustom] = useState<CustomRule[]>(() => loadCustomRules())
+  /** 分类顺序：按上次存的顺序排，没存过就按规则表原顺序 */
+  const [order, setOrder] = useState<string[]>(() => {
+    const saved = loadCatOrder()
+    const ids = CATEGORIES.map((c) => c.id)
+    const known = saved.filter((id) => ids.includes(id))
+    return [...known, ...ids.filter((id) => !known.includes(id))]
+  })
+  const [dragging, setDragging] = useState<string | null>(null)
+  const dragId = useRef<string | null>(null)
+  const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
+
+  const ordered = useMemo(
+    () => order.map((id) => CATEGORIES.find((c) => c.id === id)).filter(Boolean) as typeof CATEGORIES,
+    [order],
+  )
+
+  const toggleManage = async () => {
+    if (manage) {
+      setManage(false)
+      setAdding(null)
+      return
+    }
+    // 改规则也算「家长权限」：开了家长锁就要先验证一次
+    const ok = await guard('管理评分项目')
+    if (ok) setManage(true)
+  }
+
+  /** 拖动排序：手指按住 ⠿ 上下拖，进到哪个分组的范围就插到那个位置 */
+  const onHandleDown = (id: string) => (e: React.PointerEvent) => {
+    e.preventDefault()
+    dragId.current = id
+    setDragging(id)
+    ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+  }
+  const onHandleMove = (e: React.PointerEvent) => {
+    const id = dragId.current
+    if (!id) return
+    const y = e.clientY
+    const from = order.indexOf(id)
+    let to = from
+    for (let i = 0; i < order.length; i++) {
+      const el = sectionRefs.current[order[i]]
+      if (!el) continue
+      const r = el.getBoundingClientRect()
+      if (y >= r.top && y <= r.bottom) {
+        to = i
+        break
+      }
+    }
+    if (to !== from) {
+      const next = order.filter((x) => x !== id)
+      next.splice(to, 0, id)
+      setOrder(next)
+      saveCatOrder(next)
+    }
+  }
+  const endDrag = () => {
+    if (!dragId.current) return
+    dragId.current = null
+    setDragging(null)
+  }
 
   // 切换日期或当日记录变化时，从已存明细恢复勾选状态
   useEffect(() => {
@@ -158,22 +335,30 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear 
     })
   }
 
-  // 保存顺序：规则表顺序在前，自定义在后
+  const customNames = useMemo(() => new Set(custom.map((c) => c.name)), [custom])
+
+  // 保存顺序：按界面上的分类顺序走，每类里 奖励 → 扣分 → 自己加的项
   const entries: DayEntry[] = useMemo(() => {
     const list: DayEntry[] = []
-    for (const cat of CATEGORIES) {
+    for (const cat of ordered) {
       for (const it of cat.rewards) if (it.name in selected) list.push({ name: it.name, delta: it.points })
       for (const it of cat.penalties) if (it.name in selected) list.push({ name: it.name, delta: -it.points })
+      for (const it of custom) {
+        if (it.catId === cat.id && it.name in selected) list.push({ name: it.name, delta: it.delta })
+      }
     }
     for (const it of QUICK_ITEMS) if (it.name in selected) list.push({ name: it.name, delta: it.delta })
     for (const [name, delta] of Object.entries(selected)) {
-      if (!(name in NAMED_DELTA)) list.push({ name, delta })
+      if (!(name in NAMED_DELTA) && !customNames.has(name)) list.push({ name, delta })
     }
     return list
-  }, [selected])
+  }, [selected, ordered, custom, customNames])
 
   const pending = entries.reduce((s, e) => s + e.delta, 0)
-  const customSelected = Object.entries(selected).filter(([name]) => !(name in NAMED_DELTA))
+  /** 只算「临时自定义」：已经保存进分类的不在这里重复显示 */
+  const customSelected = Object.entries(selected).filter(
+    ([name]) => !(name in NAMED_DELTA) && !customNames.has(name),
+  )
 
   const save = async () => {
     if (entries.length === 0) {
@@ -251,33 +436,90 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear 
         </section>
 
         {/* 规则分类：默认折叠，点开展开奖励/扣分网格 */}
-        {CATEGORIES.map((cat) => {
+        <div className="flex items-center justify-between gap-3 px-1">
+          <div className="text-sm font-bold text-mut">规则分类（点开勾选）</div>
+          <button
+            onClick={toggleManage}
+            aria-pressed={manage}
+            className={`tap flex min-h-[40px] items-center gap-1.5 rounded-ctl px-3.5 text-sm font-bold ${
+              manage ? 'bg-brand text-white' : 'bg-white text-mut shadow-card'
+            }`}
+          >
+            <span aria-hidden>⚙</span>
+            {manage ? '完成' : '管理'}
+          </button>
+        </div>
+
+        {manage && (
+          <p className="-mt-2 rounded-ctl bg-brand-soft px-4 py-2.5 text-xs leading-6 text-brand">
+            管理模式：按住 <b>⠿</b> 可以把分类上下拖动换位；点分类右边的{' '}
+            <b>➕</b> 能往这个类里加自己的加减分项；自己加的项右上角有 <b>✕</b> 可以删掉。
+          </p>
+        )}
+
+        {ordered.map((cat) => {
           const open = !!openCats[cat.id]
-          const count = cat.rewards.length + cat.penalties.length
+          const mine = custom.filter((it) => it.catId === cat.id)
+          const count = cat.rewards.length + cat.penalties.length + mine.length
           const picked =
-            [...cat.rewards, ...cat.penalties].filter((it) => it.name in selected).length
+            [...cat.rewards, ...cat.penalties].filter((it) => it.name in selected).length +
+            mine.filter((it) => it.name in selected).length
           return (
-            <section key={cat.id} className="card overflow-hidden">
-              <button
-                onClick={() => setOpenCats((p) => ({ ...p, [cat.id]: !p[cat.id] }))}
-                aria-expanded={open}
-                className="tap flex min-h-[56px] w-full items-center gap-3 px-5 py-3 text-left"
-              >
-                <img src={CAT_ICON[cat.id]} alt="" aria-hidden className="h-7 w-7 object-contain" />
-                <span className="flex-1 text-lg font-bold">{cat.name}</span>
-                {picked > 0 && (
-                  <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-bold text-brand">
-                    已选 {picked}
+            <section
+              key={cat.id}
+              ref={(el) => {
+                sectionRefs.current[cat.id] = el
+              }}
+              className={`card overflow-hidden ${dragging === cat.id ? 'shadow-pop ring-2 ring-brand/40' : ''}`}
+            >
+              <div className="flex min-h-[56px] items-center gap-2 px-4 py-3 tb:gap-3 tb:px-5">
+                {manage && (
+                  <span
+                    onPointerDown={onHandleDown(cat.id)}
+                    onPointerMove={onHandleMove}
+                    onPointerUp={endDrag}
+                    onPointerCancel={endDrag}
+                    aria-label={`拖动排序 ${cat.name}`}
+                    role="button"
+                    className="flex h-11 w-8 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded-ctl bg-canvas text-lg text-mut active:cursor-grabbing"
+                  >
+                    ⠿
                   </span>
                 )}
-                <span className="text-sm text-mut">{count} 项</span>
-                <span
-                  aria-hidden
-                  className={`text-mut transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                <button
+                  onClick={() => setOpenCats((p) => ({ ...p, [cat.id]: !p[cat.id] }))}
+                  aria-expanded={open}
+                  className="tap flex min-h-[44px] min-w-0 flex-1 items-center gap-3 text-left"
                 >
-                  ▾
-                </span>
-              </button>
+                  <img src={CAT_ICON[cat.id]} alt="" aria-hidden className="h-7 w-7 object-contain" />
+                  <span className="min-w-0 flex-1 text-lg font-bold">{cat.name}</span>
+                  {picked > 0 && (
+                    <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-bold text-brand">
+                      已选 {picked}
+                    </span>
+                  )}
+                  <span className="text-sm text-mut">{count} 项</span>
+                  <span
+                    aria-hidden
+                    className={`text-mut transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                  >
+                    ▾
+                  </span>
+                </button>
+                {manage && (
+                  <button
+                    onClick={() => {
+                      setOpenCats((p) => ({ ...p, [cat.id]: true }))
+                      setAdding((cur) => (cur === cat.id ? null : cat.id))
+                    }}
+                    aria-label={`给${cat.name}加一项`}
+                    title={`给${cat.name}加一项`}
+                    className="tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xl font-bold text-brand"
+                  >
+                    ＋
+                  </button>
+                )}
+              </div>
 
               {open && (
                 <div className="border-t border-line px-5 pb-5 pt-4">
@@ -305,6 +547,45 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear 
                       />
                     ))}
                   </div>
+
+                  {mine.length > 0 && (
+                    <>
+                      <div className="mb-2 mt-4 flex items-center gap-1.5 text-xs font-bold text-brand">
+                        我加的 {manage && <span className="font-normal text-mut">（点右上角 ✕ 删掉）</span>}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2.5 xl:grid-cols-3">
+                        {mine.map((it) => (
+                          <ItemChip
+                            key={it.id}
+                            name={it.name}
+                            delta={it.delta}
+                            selected={it.name in selected}
+                            onClick={() => toggle(it.name, it.delta)}
+                            onDelete={
+                              manage
+                                ? () => {
+                                    if (!window.confirm(`删掉「${it.name}」？已经记过的分不会变。`)) return
+                                    setCustom(removeCustomRule(it.id))
+                                    removeCustom(it.name)
+                                  }
+                                : undefined
+                            }
+                          />
+                        ))}
+                      </div>
+                    </>
+                  )}
+
+                  {adding === cat.id && (
+                    <CategoryAdd
+                      catName={cat.name}
+                      onCancel={() => setAdding(null)}
+                      onAdd={(name, delta) => {
+                        setCustom(addCustomRule(cat.id, name, delta))
+                        setAdding(null)
+                      }}
+                    />
+                  )}
                 </div>
               )}
             </section>

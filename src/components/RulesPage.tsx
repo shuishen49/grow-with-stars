@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { CATEGORIES, REDEEM_RULE_TEXT, REDEEM_TIERS } from '../data/rules'
+import { loadCustomRules } from '../lib/customRules'
 import SettingsCard from './SettingsCard'
 
 /** 分类 id → 素材包图标（与打分页一致） */
@@ -25,6 +26,7 @@ export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
     Object.fromEntries(CATEGORIES.map((c) => [c.id, true])),
   )
   const [openTiers, setOpenTiers] = useState(true)
+  const [custom] = useState(loadCustomRules)
 
   const toggle = (id: string) => setOpen((p) => ({ ...p, [id]: !p[id] }))
   const allOpen = CATEGORIES.every((c) => open[c.id])
@@ -46,6 +48,8 @@ export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
 
         {CATEGORIES.map((cat) => {
           const isOpen = !!open[cat.id]
+          /** 家长自己往这个类里加的项目（打分页「管理」里加的） */
+          const mine = custom.filter((it) => it.catId === cat.id)
           return (
             <section key={cat.id} className="card overflow-hidden">
               <button
@@ -93,6 +97,25 @@ export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
                         </div>
                       ))}
                     </div>
+                    {mine.length > 0 && (
+                      <div className="mt-4 rounded-ctl bg-brand-soft px-3.5 py-3">
+                        <div className="mb-1.5 text-xs font-bold text-brand">我加的</div>
+                        <div className="space-y-1.5">
+                          {mine.map((it) => (
+                            <div key={it.id} className="flex items-center justify-between gap-2 text-sm">
+                              <span className="min-w-0 text-ink/85">{it.name}</span>
+                              <span
+                                className={`shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold tabular-nums ${
+                                  it.delta > 0 ? 'bg-rosy text-posdeep' : 'bg-mint text-negdeep'
+                                }`}
+                              >
+                                {it.delta > 0 ? `+${it.delta}` : it.delta}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
