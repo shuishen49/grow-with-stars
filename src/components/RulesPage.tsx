@@ -1,15 +1,8 @@
 import { useState } from 'react'
-import { CATEGORIES, REDEEM_RULE_TEXT, REDEEM_TIERS } from '../data/rules'
+import { REDEEM_RULE_TEXT, REDEEM_TIERS } from '../data/rules'
 import { loadCustomRules } from '../lib/customRules'
+import { buildCategories, catIcon } from '../lib/cats'
 import SettingsCard from './SettingsCard'
-
-/** 分类 id → 素材包图标（与打分页一致） */
-const CAT_ICON: Record<string, string> = {
-  life: '/ui/category-life.webp',
-  study: '/ui/category-study.webp',
-  result: '/ui/category-achievement.webp',
-  character: '/ui/category-character.webp',
-}
 
 /**
  * 规则手风琴（RuleAccordion）
@@ -22,23 +15,25 @@ interface Props {
 }
 
 export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
+  /** 内置大类 + 家长自己新建/改名的，跟打分页看到的一致 */
+  const [cats] = useState(buildCategories)
   const [open, setOpen] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(CATEGORIES.map((c) => [c.id, true])),
+    Object.fromEntries(buildCategories().map((c) => [c.id, true])),
   )
   const [openTiers, setOpenTiers] = useState(true)
   const [custom] = useState(loadCustomRules)
 
   const toggle = (id: string) => setOpen((p) => ({ ...p, [id]: !p[id] }))
-  const allOpen = CATEGORIES.every((c) => open[c.id])
+  const allOpen = cats.every((c) => open[c.id])
 
   return (
     <div className="grid items-start gap-5 tb:grid-cols-[minmax(0,1fr)_300px]">
       <div className="min-w-0 space-y-4">
         {/* 一键展开/收起 */}
         <div className="flex items-center justify-between px-1">
-          <span className="text-sm text-mut">共 {CATEGORIES.length} 类规则</span>
+          <span className="text-sm text-mut">共 {cats.length} 类规则</span>
           <button
-            onClick={() => setOpen(Object.fromEntries(CATEGORIES.map((c) => [c.id, !allOpen])))}
+            onClick={() => setOpen(Object.fromEntries(cats.map((c) => [c.id, !allOpen])))}
             className="tap flex min-h-[44px] items-center gap-1.5 rounded-ctl px-3 text-sm font-bold text-brand hover:bg-brand-soft"
           >
             <span aria-hidden>{allOpen ? '▴' : '▾'}</span>
@@ -46,7 +41,7 @@ export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
           </button>
         </div>
 
-        {CATEGORIES.map((cat) => {
+        {cats.map((cat) => {
           const isOpen = !!open[cat.id]
           /** 家长自己往这个类里加的项目（打分页「管理」里加的） */
           const mine = custom.filter((it) => it.catId === cat.id)
@@ -57,7 +52,13 @@ export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
                 aria-expanded={isOpen}
                 className="tap flex min-h-[56px] w-full items-center gap-3 px-5 py-3 text-left"
               >
-                <img src={CAT_ICON[cat.id]} alt="" aria-hidden className="h-7 w-7 object-contain" />
+                {catIcon(cat).src ? (
+                  <img src={catIcon(cat).src} alt="" aria-hidden className="h-7 w-7 object-contain" />
+                ) : (
+                  <span aria-hidden className="flex h-7 w-7 items-center justify-center text-2xl">
+                    {catIcon(cat).emoji}
+                  </span>
+                )}
                 <span className="flex-1 text-lg font-bold">{cat.name}</span>
                 <span className="rounded-full bg-canvas px-2.5 py-0.5 text-xs text-mut">
                   奖 {cat.rewards.length} · 罚 {cat.penalties.length}
@@ -115,6 +116,11 @@ export default function RulesPage({ onToast, onCheckUpdate, checking }: Props) {
                           ))}
                         </div>
                       </div>
+                    )}
+                    {cat.rewards.length + cat.penalties.length + mine.length === 0 && (
+                      <p className="mt-3 rounded-ctl bg-canvas px-3.5 py-3 text-sm text-mut">
+                        这个类还没有项目，去「打分」页点「管理」给它加一条吧。
+                      </p>
                     )}
                   </div>
                 </div>

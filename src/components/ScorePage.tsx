@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { CATEGORIES, NAMED_DELTA, QUICK_ITEMS } from '../data/rules'
+import { NAMED_DELTA, QUICK_ITEMS } from '../data/rules'
+import { CAT_EMOJI_CHOICES, buildCategories, catIcon, type BuiltCat } from '../lib/cats'
 import type { DayEntry, LedgerRow } from '../lib/store'
 import { parseDetail } from '../lib/store'
 import {
@@ -7,6 +8,10 @@ import {
   loadCatOrder,
   loadCustomRules,
   removeCustomRule,
+  removeUserCatAndRules,
+  saveCatName,
+  addUserCat,
+  setUserCatEmoji,
   saveCatOrder,
   type CustomRule,
 } from '../lib/customRules'
@@ -26,12 +31,71 @@ export function fmtDelta(n: number): string {
   return n > 0 ? `+${n}` : `${n}`
 }
 
-/** 分类 id → 素材包图标（public/ui/） */
-const CAT_ICON: Record<string, string> = {
-  life: '/ui/category-life.webp',
-  study: '/ui/category-study.webp',
-  result: '/ui/category-achievement.webp',
-  character: '/ui/category-character.webp',
+/** 分类改名 / 新建分类的行内编辑器：名字 + 挑一个头像 */
+function CatEditor({
+  title,
+  initName,
+  initEmoji,
+  onSave,
+  onCancel,
+}: {
+  title: string
+  initName: string
+  initEmoji: string
+  onSave: (name: string, emoji: string) => void
+  onCancel: () => void
+}) {
+  const [name, setName] = useState(initName)
+  const [emoji, setEmoji] = useState(initEmoji || CAT_EMOJI_CHOICES[0])
+
+  const submit = () => {
+    const n = name.trim()
+    if (!n) return
+    onSave(n, emoji)
+  }
+
+  return (
+    <div className="rounded-ctl border border-dashed border-brand/50 bg-brand-soft/40 p-4">
+      <div className="mb-2 text-sm font-bold text-brand">{title}</div>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          autoFocus
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && submit()}
+          placeholder="给它起个名字，如：家务小能手"
+          className="min-w-0 flex-1 rounded-ctl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none placeholder:text-mut/60 focus:border-brand"
+          aria-label="分类名字"
+        />
+        <div className="scroll-x flex flex-1 items-center gap-1 overflow-x-auto rounded-ctl bg-white p-1">
+          {CAT_EMOJI_CHOICES.map((e) => (
+            <button
+              key={e}
+              onClick={() => setEmoji(e)}
+              aria-label={`头像 ${e}`}
+              aria-pressed={emoji === e}
+              className={`tap flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-lg ${
+                emoji === e ? 'bg-brand text-white' : 'bg-canvas'
+              }`}
+            >
+              {e}
+            </button>
+          ))}
+        </div>
+        <button
+          disabled={!name.trim()}
+          onClick={submit}
+          className="btn-primary px-4 py-2.5 text-[15px] disabled:opacity-40"
+        >
+          保存
+        </button>
+        <button onClick={onCancel} className="tap px-3 py-2 text-sm font-medium text-mut">
+          取消
+        </button>
+      </div>
+      <p className="mt-1.5 text-xs text-mut">改完所有地方都会跟着变，之前打过的分不受影响。</p>
+    </div>
+  )
 }
 
 /** 单个打分项：白底卡片，选中后紫底描边（aria-pressed 供无障碍与样式共用） */
@@ -174,11 +238,15 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
   /** 管理模式：只有点「管理」之后才露出 ➕ 和删除叉、才能拖动排序 */
   const [manage, setManage] = useState(false)
   const [adding, setAdding] = useState<string | null>(null)
+  /** 正在改名字的大类 id；'new' 表示正在新建一个大类 */
+  const [editing, setEditing] = useState<string | null>(null)
   const [custom, setCustom] = useState<CustomRule[]>(() => loadCustomRules())
-  /** 分类顺序：按上次存的顺序排，没存过就按规则表原顺序 */
+  /** 内置大类 + 自己新建的大类 + 改过的名字，合并成一份 */
+  const [cats, setCats] = useState<BuiltCat[]>(buildCategories)
+  /** 分类顺序：按上次存的顺序排，新加的排在最后 */
   const [order, setOrder] = useState<string[]>(() => {
     const saved = loadCatOrder()
-    const ids = CATEGORIES.map((c) => c.id)
+    const ids = buildCategories().map((c) => c.id)
     const known = saved.filter((id) => ids.includes(id))
     return [...known, ...ids.filter((id) => !known.includes(id))]
   })
@@ -200,20 +268,63 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
     null,
   )
 
-  const ordered = useMemo(
-    () => order.map((id) => CATEGORIES.find((c) => c.id === id)).filter(Boolean) as typeof CATEGORIES,
-    [order],
-  )
+  const ordered = useMemo(() => order.map((id) => cats.find((c) => c.id === id)).filter(Boolean) as BuiltCat[], [
+    order,
+    cats,
+  ])
 
   const toggleManage = async () => {
     if (manage) {
       setManage(false)
       setAdding(null)
+      setEditing(null)
       return
     }
     // 改规则也算「家长权限」：开了家长锁就要先验证一次
     const ok = await guard('管理评分项目')
     if (ok) setManage(true)
+  }
+
+  // ---------- 大类本身：改名 / 新建 / 删除 ----------
+  const refreshCats = () => setCats(buildCategories())
+
+  const renameCat = (id: string, name: string) => {
+    saveCatName(id, name)
+    refreshCats()
+    setEditing(null)
+  }
+
+  /** 自建大类可以连头像一起换；内置大类只有名字能改 */
+  const setEmojiForUserCat = (id: string, emoji: string) => {
+    setUserCatEmoji(id, emoji)
+    refreshCats()
+  }
+
+  const createCat = (name: string, emoji: string) => {
+    const list = addUserCat(name, emoji)
+    const made = list[list.length - 1]
+    if (made) {
+      setOrder((prev) => [...prev.filter((x) => x !== made.id), made.id])
+      saveCatOrder([...order.filter((x) => x !== made.id), made.id])
+    }
+    refreshCats()
+    setEditing(null)
+  }
+
+  const deleteCat = (cat: BuiltCat) => {
+    const who = custom.filter((it) => it.catId === cat.id).length
+    const extra = who > 0 ? `\n\n这个类里你自己加的 ${who} 项也会一起删掉。` : ''
+    if (!window.confirm(`删掉「${cat.name}」这个大类？${extra}\n\n已经打过的分不会变。`)) return
+    // 清掉这个类本身，以及它里面的自定义项
+    const data = removeUserCatAndRules(cat.id)
+    setCustom(data.rules)
+    setOrder((prev) => {
+      const next = prev.filter((x) => x !== cat.id)
+      saveCatOrder(next)
+      return next
+    })
+    refreshCats()
+    setAdding(null)
   }
 
   /** 轻微震动反馈（安卓 WebView 支持就用，不支持就安静跳过） */
@@ -454,9 +565,33 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
 
         {manage && (
           <p className="-mt-2 rounded-ctl bg-brand-soft px-4 py-2.5 text-xs leading-6 text-brand">
-            管理模式：按住 <b>⠿</b> 可以把分类上下拖动换位；点分类右边的{' '}
-            <b>➕</b> 能往这个类里加自己的加减分项；自己加的项右上角有 <b>✕</b> 可以删掉。
+            管理模式：按住 <b>⠿</b> 可以把分类上下拖动换位；点 <b>✏️</b> 给分类改名；点{' '}
+            <b>➕</b> 往这个类里加自己的加减分项；自己加的项右上角有 <b>✕</b> 可以删掉；整个自建分类不要了，点{' '}
+            <b>🗑</b>。
           </p>
+        )}
+
+        {manage && editing === 'new' && (
+          <CatEditor
+            title="新增一个大类"
+            initName=""
+            initEmoji={CAT_EMOJI_CHOICES[0]}
+            onSave={createCat}
+            onCancel={() => setEditing(null)}
+          />
+        )}
+
+        {manage && editing !== 'new' && (
+          <button
+            onClick={() => setEditing('new')}
+            aria-label="新增大类"
+            className="tap flex min-h-[48px] items-center justify-center gap-2 rounded-card border border-dashed border-brand/50 bg-white text-sm font-bold text-brand"
+          >
+            <span aria-hidden className="text-base">
+              ＋
+            </span>
+            新增一个大类
+          </button>
         )}
 
         {ordered.map((cat, idx) => {
@@ -503,58 +638,99 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
               style={style}
               className={wrapCls}
             >
-              <div className="flex min-h-[56px] items-center gap-2 px-4 py-3 tb:gap-3 tb:px-5">
-                {manage && (
-                  <span
-                    onPointerDown={onHandleDown(cat.id)}
-                    onPointerMove={onHandleMove}
-                    onPointerUp={endDrag}
-                    onPointerCancel={endDrag}
-                    aria-label={`拖动排序 ${cat.name}`}
-                    role="button"
-                    className={`flex h-11 w-8 shrink-0 touch-none select-none items-center justify-center rounded-ctl text-lg transition-colors duration-150 ${
-                      isDragging
-                        ? 'cursor-grabbing bg-brand text-white'
-                        : 'cursor-grab bg-canvas text-mut active:bg-brand-soft active:text-brand'
-                    }`}
-                  >
-                    ⠿
-                  </span>
-                )}
-                <button
-                  onClick={() => setOpenCats((p) => ({ ...p, [cat.id]: !p[cat.id] }))}
-                  aria-expanded={open}
-                  className="tap flex min-h-[44px] min-w-0 flex-1 items-center gap-3 text-left"
-                >
-                  <img src={CAT_ICON[cat.id]} alt="" aria-hidden className="h-7 w-7 object-contain" />
-                  <span className="min-w-0 flex-1 text-lg font-bold">{cat.name}</span>
-                  {picked > 0 && (
-                    <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-bold text-brand">
-                      已选 {picked}
+              {manage && editing === cat.id ? (
+                <div className="p-3 tb:p-4">
+                  <CatEditor
+                    title={`给「${cat.name}」改个名字`}
+                    initName={cat.name}
+                    initEmoji={cat.emoji}
+                    onSave={(name, emoji) => {
+                      renameCat(cat.id, name)
+                      if (!cat.builtin) setEmojiForUserCat(cat.id, emoji)
+                    }}
+                    onCancel={() => setEditing(null)}
+                  />
+                </div>
+              ) : (
+                <div className="flex min-h-[56px] items-center gap-2 px-4 py-3 tb:gap-3 tb:px-5">
+                  {manage && (
+                    <span
+                      onPointerDown={onHandleDown(cat.id)}
+                      onPointerMove={onHandleMove}
+                      onPointerUp={endDrag}
+                      onPointerCancel={endDrag}
+                      aria-label={`拖动排序 ${cat.name}`}
+                      role="button"
+                      className={`flex h-11 w-8 shrink-0 touch-none select-none items-center justify-center rounded-ctl text-lg transition-colors duration-150 ${
+                        isDragging
+                          ? 'cursor-grabbing bg-brand text-white'
+                          : 'cursor-grab bg-canvas text-mut active:bg-brand-soft active:text-brand'
+                      }`}
+                    >
+                      ⠿
                     </span>
                   )}
-                  <span className="text-sm text-mut">{count} 项</span>
-                  <span
-                    aria-hidden
-                    className={`text-mut transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
-                  >
-                    ▾
-                  </span>
-                </button>
-                {manage && (
                   <button
-                    onClick={() => {
-                      setOpenCats((p) => ({ ...p, [cat.id]: true }))
-                      setAdding((cur) => (cur === cat.id ? null : cat.id))
-                    }}
-                    aria-label={`给${cat.name}加一项`}
-                    title={`给${cat.name}加一项`}
-                    className="tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xl font-bold text-brand"
+                    onClick={() => setOpenCats((p) => ({ ...p, [cat.id]: !p[cat.id] }))}
+                    aria-expanded={open}
+                    className="tap flex min-h-[44px] min-w-0 flex-1 items-center gap-3 text-left"
                   >
-                    ＋
+                    {catIcon(cat).src ? (
+                      <img src={catIcon(cat).src} alt="" aria-hidden className="h-7 w-7 object-contain" />
+                    ) : (
+                      <span aria-hidden className="flex h-7 w-7 items-center justify-center text-2xl">
+                        {catIcon(cat).emoji}
+                      </span>
+                    )}
+                    <span className="min-w-0 flex-1 text-lg font-bold">{cat.name}</span>
+                    {picked > 0 && (
+                      <span className="rounded-full bg-brand-soft px-2.5 py-0.5 text-xs font-bold text-brand">
+                        已选 {picked}
+                      </span>
+                    )}
+                    <span className="text-sm text-mut">{count} 项</span>
+                    <span
+                      aria-hidden
+                      className={`text-mut transition-transform duration-200 ${open ? 'rotate-180' : ''}`}
+                    >
+                      ▾
+                    </span>
                   </button>
-                )}
-              </div>
+                  {manage && (
+                    <>
+                      <button
+                        onClick={() => setEditing(cat.id)}
+                        aria-label={`给${cat.name}改名`}
+                        title={`给${cat.name}改名`}
+                        className="tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-base text-mut"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => {
+                          setOpenCats((p) => ({ ...p, [cat.id]: true }))
+                          setAdding((cur) => (cur === cat.id ? null : cat.id))
+                        }}
+                        aria-label={`给${cat.name}加一项`}
+                        title={`给${cat.name}加一项`}
+                        className="tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-soft text-xl font-bold text-brand"
+                      >
+                        ＋
+                      </button>
+                      {!cat.builtin && (
+                        <button
+                          onClick={() => deleteCat(cat)}
+                          aria-label={`删除大类 ${cat.name}`}
+                          title={`删除大类 ${cat.name}`}
+                          className="tap flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-canvas text-base text-mut"
+                        >
+                          🗑
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
 
               {open && (
                 <div className="border-t border-line px-5 pb-5 pt-4">
@@ -582,6 +758,12 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
                       />
                     ))}
                   </div>
+
+                  {count === 0 && adding !== cat.id && (
+                    <p className="mt-3 rounded-ctl bg-canvas px-4 py-3 text-sm leading-6 text-mut">
+                      这个大类还是空的，点标题右边的 <b>＋</b> 加第一条吧。
+                    </p>
+                  )}
 
                   {mine.length > 0 && (
                     <>

@@ -15,8 +15,20 @@ export interface CustomRule {
   createdAt: number
 }
 
+/** 家长自己新建的大类 */
+export interface UserCat {
+  id: string
+  name: string
+  /** 头像用一个 emoji，不用额外素材 */
+  emoji: string
+  createdAt: number
+}
+
 const KEY_RULES = 'tp_custom_rules'
 const KEY_ORDER = 'tp_cat_order'
+const KEY_USER_CATS = 'tp_user_cats'
+/** 分类重命名：{ [分类id]: 新名字 }，内置和自建的都能改 */
+const KEY_CAT_NAMES = 'tp_cat_names'
 
 function read<T>(key: string, fallback: T): T {
   try {
@@ -72,4 +84,60 @@ export function loadCatOrder(): string[] {
 
 export function saveCatOrder(ids: string[]): void {
   write(KEY_ORDER, ids)
+}
+
+// ---------- 自己新建的大类 ----------
+
+export function loadUserCats(): UserCat[] {
+  const list = read<UserCat[]>(KEY_USER_CATS, [])
+  return Array.isArray(list) ? list.filter((c) => c && c.id && c.name) : []
+}
+
+/** 新建一个大类；重名就直接返回原来的列表 */
+export function addUserCat(name: string, emoji: string): UserCat[] {
+  const list = loadUserCats()
+  const n = name.trim()
+  if (!n || list.some((c) => c.name === n)) return list
+  list.push({
+    id: `u_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    name: n,
+    emoji: emoji || '⭐',
+    createdAt: Date.now(),
+  })
+  write(KEY_USER_CATS, list)
+  return list
+}
+
+/** 换一个头像 */
+export function setUserCatEmoji(id: string, emoji: string): UserCat[] {
+  const list = loadUserCats()
+  const hit = list.find((c) => c.id === id)
+  if (hit) hit.emoji = emoji || '⭐'
+  write(KEY_USER_CATS, list)
+  return list
+}
+
+/** 删掉一个大类，同时把这个类里自己加的评分项也一起清掉，不留垃圾数据 */
+export function removeUserCatAndRules(id: string): { cats: UserCat[]; rules: CustomRule[] } {
+  const rules = loadCustomRules().filter((r) => r.catId !== id)
+  write(KEY_RULES, rules)
+  const cats = loadUserCats().filter((c) => c.id !== id)
+  write(KEY_USER_CATS, cats)
+  return { cats, rules }
+}
+
+// ---------- 分类重命名 ----------
+
+export function loadCatNames(): Record<string, string> {
+  return read<Record<string, string>>(KEY_CAT_NAMES, {})
+}
+
+/** 改名字；留空就等于用回原来的名字 */
+export function saveCatName(id: string, name: string): Record<string, string> {
+  const map = loadCatNames()
+  const n = name.trim()
+  if (n) map[id] = n
+  else delete map[id]
+  write(KEY_CAT_NAMES, map)
+  return map
 }
