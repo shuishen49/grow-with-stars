@@ -552,16 +552,31 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
         {/* 规则分类：默认折叠，点开展开奖励/扣分网格 */}
         <div className="flex items-center justify-between gap-3 px-1">
           <div className="text-sm font-bold text-mut">规则分类（点开勾选）</div>
-          <button
-            onClick={toggleManage}
-            aria-pressed={manage}
-            className={`tap flex min-h-[40px] items-center gap-1.5 rounded-ctl px-3.5 text-sm font-bold ${
-              manage ? 'bg-brand text-white' : 'bg-white text-mut shadow-card'
-            }`}
-          >
-            <span aria-hidden>⚙</span>
-            {manage ? '完成' : '管理'}
-          </button>
+          <div className="flex items-center gap-2">
+            {manage && editing !== 'new' && (
+              <button
+                onClick={() => setEditing('new')}
+                aria-label="新增大类"
+                className="tap flex min-h-[40px] items-center gap-1.5 rounded-ctl bg-white px-3.5 text-sm font-bold text-brand shadow-card"
+              >
+                <span aria-hidden className="text-base leading-none">
+                  ＋
+                </span>
+                新增大类
+              </button>
+            )}
+            <button
+              onClick={toggleManage}
+              aria-pressed={manage}
+              aria-label={manage ? '退出管理模式' : '进入管理模式'}
+              className={`tap flex min-h-[40px] items-center gap-1.5 rounded-ctl px-3.5 text-sm font-bold ${
+                manage ? 'bg-brand text-white' : 'bg-white text-mut shadow-card'
+              }`}
+            >
+              <span aria-hidden>⚙</span>
+              {manage ? '完成' : '管理'}
+            </button>
+          </div>
         </div>
 
         {manage && (
@@ -582,18 +597,6 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
           />
         )}
 
-        {manage && editing !== 'new' && (
-          <button
-            onClick={() => setEditing('new')}
-            aria-label="新增大类"
-            className="tap flex min-h-[48px] items-center justify-center gap-2 rounded-card border border-dashed border-brand/50 bg-white text-sm font-bold text-brand"
-          >
-            <span aria-hidden className="text-base">
-              ＋
-            </span>
-            新增一个大类
-          </button>
-        )}
 
         {ordered.map((cat, idx) => {
           const open = !!openCats[cat.id]
