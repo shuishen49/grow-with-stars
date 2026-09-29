@@ -165,74 +165,6 @@ function CategoryAdd({
   )
 }
 
-function CustomAdd({ onAdd }: { onAdd: (name: string, delta: number) => void }) {
-  const [name, setName] = useState('')
-  const [pts, setPts] = useState(1)
-  const [sign, setSign] = useState<1 | -1>(1)
-
-  const submit = () => {
-    const n = name.trim()
-    if (!n) return
-    onAdd(n, sign * pts)
-    setName('')
-  }
-
-  return (
-    <div className="card p-5">
-      <div className="mb-3 flex flex-wrap items-baseline gap-2 font-bold">
-        <span>✏️ 临时自定义</span>
-        <span className="text-xs font-normal text-mut">
-          （只对今天这一次有效；想每天都能勾，用「管理」加到对应分类里）
-        </span>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => e.key === 'Enter' && submit()}
-          placeholder="如：帮忙做家务"
-          className="min-w-0 flex-1 rounded-ctl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none transition-colors placeholder:text-mut/60 focus:border-brand"
-        />
-        <div className="flex items-center gap-1 rounded-ctl bg-canvas p-1">
-          <button
-            aria-label="减少分值"
-            className="tap h-9 w-9 rounded-lg text-lg font-bold text-mut"
-            onClick={() => setPts((p) => Math.max(1, p - 1))}
-          >
-            −
-          </button>
-          <span className="w-7 text-center font-bold tabular-nums">{pts}</span>
-          <button
-            aria-label="增加分值"
-            className="tap h-9 w-9 rounded-lg text-lg font-bold text-mut"
-            onClick={() => setPts((p) => Math.min(50, p + 1))}
-          >
-            ＋
-          </button>
-        </div>
-        <div className="flex rounded-ctl bg-canvas p-1">
-          <button
-            aria-pressed={sign === 1}
-            className={`tap rounded-lg px-3.5 py-1.5 text-sm font-bold ${sign === 1 ? 'bg-pos text-white' : 'text-mut'}`}
-            onClick={() => setSign(1)}
-          >
-            奖
-          </button>
-          <button
-            aria-pressed={sign === -1}
-            className={`tap rounded-lg px-3.5 py-1.5 text-sm font-bold ${sign === -1 ? 'bg-neg text-white' : 'text-mut'}`}
-            onClick={() => setSign(-1)}
-          >
-            罚
-          </button>
-        </div>
-        <button disabled={!name.trim()} onClick={submit} className="btn-primary px-5 py-2.5 text-[15px] disabled:opacity-40">
-          添加
-        </button>
-      </div>
-    </div>
-  )
-}
 
 export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear, guard }: Props) {
   const [selected, setSelected] = useState<Record<string, number>>({})
@@ -429,10 +361,6 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
   }, [selected, ordered, custom, customNames])
 
   const pending = entries.reduce((s, e) => s + e.delta, 0)
-  /** 只算「临时自定义」：已经保存进分类的不在这里重复显示 */
-  const customSelected = Object.entries(selected).filter(
-    ([name]) => !(name in NAMED_DELTA) && !customNames.has(name),
-  )
 
   const save = async () => {
     if (entries.length === 0) {
@@ -699,29 +627,6 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
           )
         })}
 
-        <CustomAdd
-          onAdd={(name, delta) => setSelected((prev) => ({ ...prev, [name]: delta }))}
-        />
-
-        {customSelected.length > 0 && (
-          <div className="card p-5">
-            <div className="mb-2 text-sm font-bold text-ink">已添加的自定义项</div>
-            <div className="flex flex-wrap gap-2">
-              {customSelected.map(([name, delta]) => (
-                <button
-                  key={name}
-                  onClick={() => removeCustom(name)}
-                  aria-label={`移除自定义项 ${name}`}
-                  className={`tap flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm font-medium ${
-                    delta > 0 ? 'bg-rosy text-posdeep' : 'bg-mint text-negdeep'
-                  }`}
-                >
-                  {name} {fmtDelta(delta)} <span className="text-xs opacity-50">✕</span>
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ============ 右栏：今日已选摘要（SelectionPanel） ============ */}
@@ -759,10 +664,7 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
               {entries.map((e) => (
                 <li key={e.name}>
                   <button
-                    onClick={() => {
-                      if (customSelected.some(([n]) => n === e.name)) removeCustom(e.name)
-                      else toggle(e.name, e.delta)
-                    }}
+                    onClick={() => toggle(e.name, e.delta)}
                     aria-label={`取消 ${e.name}`}
                     className="tap flex w-full items-center gap-2 rounded-ctl bg-canvas px-3 py-2 text-left text-sm hover:bg-brand-soft"
                   >

@@ -12,6 +12,9 @@ interface Props {
   onCheckUpdate: () => void
 }
 
+/** 开发者联系邮箱 */
+const DEV_EMAIL = '93418328@qq.com'
+
 const MODE_TEXT: Record<SourceMode, string> = {
   cloud: '云端同步（登录后多设备共享）',
   local: '仅保存在这台设备上',
@@ -37,13 +40,13 @@ export default function AboutModal({ open, onClose, mode, email, checking, onChe
   if (!open) return null
   const { date, build } = parseVersion(APP_VERSION)
 
-  /** 点一下 QQ 号就复制走，省得还得拿笔抄 */
-  const copyQQ = async () => {
+  /** 点一下邮箱就复制走，省得还得手抄 */
+  const copyEmail = async () => {
     try {
-      await navigator.clipboard.writeText('93418328')
-      setCopied('已复制 QQ 号')
+      await navigator.clipboard.writeText(DEV_EMAIL)
+      setCopied('已复制邮箱')
     } catch {
-      setCopied('复制失败，请手动记下 93418328')
+      setCopied(`复制失败，请手动记下 ${DEV_EMAIL}`)
     }
     setTimeout(() => setCopied(''), 2500)
   }
@@ -87,15 +90,15 @@ export default function AboutModal({ open, onClose, mode, email, checking, onChe
         <div className="mt-1 text-sm leading-6 text-ink">
           个人开发者 · <b>小鑫学渣</b>
         </div>
-        <button onClick={copyQQ} className="tap flex items-baseline gap-1.5 text-sm leading-6 text-ink">
-          <span>QQ：93418328</span>
-          <span aria-hidden className="text-xs">
+        <button onClick={copyEmail} className="tap flex items-baseline gap-1.5 text-sm leading-6 text-ink">
+          <span className="break-all">邮箱：{DEV_EMAIL}</span>
+          <span aria-hidden className="shrink-0 text-xs">
             📋
           </span>
         </button>
         <div className="h-1 text-xs text-brand">{copied}</div>
         <div className="mt-1 text-xs leading-6 text-mut">
-          一个人做的小工具，不采集任何个人信息，也没有广告。遇到问题随时 QQ 找我。
+          一个人做的小工具，不采集任何个人信息，也没有广告。遇到问题发邮件找我就行，看到都会回。
         </div>
       </div>
 
