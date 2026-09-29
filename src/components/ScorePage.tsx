@@ -62,6 +62,7 @@ function CatEditor({
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value)}
+          onFocus={(e) => e.currentTarget.select()} // 点一下全选，直接打字就覆盖旧名字
           onKeyDown={(e) => e.key === 'Enter' && submit()}
           placeholder="给它起个名字，如：家务小能手"
           className="min-w-0 flex-1 rounded-ctl border border-line bg-white px-3.5 py-2.5 text-[15px] outline-none placeholder:text-mut/60 focus:border-brand"
