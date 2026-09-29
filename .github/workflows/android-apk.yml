@@ -247,11 +247,15 @@ jobs:
           if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
             TAG="${GITHUB_REF_NAME}"
             TITLE="家庭积分本 ${GITHUB_REF_NAME}"
-            PRE=""
           else
             TAG="latest"
-            TITLE="家庭积分本 最新调试版"
-            PRE="--prerelease"
+            TITLE="家庭积分本 最新调试版（$(date '+%Y-%m-%d') · ${GITHUB_SHA::7}）"
+            # ⚠️ 这里曾经加过 --prerelease，结果 GitHub 不把它当「正式发布」：
+            # 首页侧边栏、Releases 列表里都看不到（只剩 Tags 一栏），
+            # 看着就像根本没发布过。滚动包本来就是给自家平板装的正式包，
+            # 所以按正常发布走，并显式标成 Latest。
+            # （热更新走的是 hot 分支 raw + /releases/download/latest/ 直连，
+            #   两条路都不依赖 latest 的 prelease 标记，去掉没有副作用。）
             # latest 是滚动标签：先删掉旧的再建新的（正式 tag 不删）
             gh release delete "$TAG" --cleanup-tag --yes 2>/dev/null || true
           fi
@@ -260,7 +264,7 @@ jobs:
           if [ -f android/app/build/outputs/apk/release/app-release.apk ]; then
             FILES="$FILES out/FamilyPoints-${DATE}-release.apk"
           fi
-          gh release create "$TAG" $PRE \
+          gh release create "$TAG" --latest \
             --title "$TITLE" \
             --notes "GitHub Actions 自动打包（$(date '+%Y-%m-%d %H:%M') UTC，源码 ${GITHUB_SHA::7}）。调试版可直接安装；未配置 Supabase 密钥时打出来的是「本机模式」，能记账看日历但不能登录云同步。平板建议横屏，且分辨率需达 1100 CSS 像素以上才显示双栏布局。hot-bundle.zip + hot-update.json 是热更新用的，装过 App 之后点「规则 → 检查更新」即可升级。" \
             $FILES
