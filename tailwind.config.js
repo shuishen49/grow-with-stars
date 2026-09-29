@@ -34,6 +34,7 @@ export default {
       boxShadow: {
         card: '0 4px 16px rgba(67,49,111,.05)',
         pop: '0 16px 40px rgba(67,49,111,.16)',
+        drag: '0 24px 56px rgba(67,49,111,.28)',
       },
       borderRadius: {
         card: '20px',

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { CATEGORIES, NAMED_DELTA, QUICK_ITEMS } from '../data/rules'
 import type { DayEntry, LedgerRow } from '../lib/store'
 import { parseDetail } from '../lib/store'
@@ -254,6 +254,20 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
   const dragId = useRef<string | null>(null)
   const sectionRefs = useRef<Record<string, HTMLElement | null>>({})
 
+  /** 拖拽中的手势状态：dy 是手指偏移量，to 是落点下标，抬手才真正改顺序 */
+  const [drag, setDrag] = useState<{
+    id: string
+    from: number
+    to: number
+    dy: number
+    h: number
+    gap: number
+    homes: number[]
+  } | null>(null)
+  const dragMeta = useRef<{ id: string; from: number; startY: number; h: number; gap: number; homes: number[] } | null>(
+    null,
+  )
+
   const ordered = useMemo(
     () => order.map((id) => CATEGORIES.find((c) => c.id === id)).filter(Boolean) as typeof CATEGORIES,
     [order],
@@ -270,39 +284,99 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
     if (ok) setManage(true)
   }
 
-  /** 拖动排序：手指按住 ⠿ 上下拖，进到哪个分组的范围就插到那个位置 */
+  /** 轻微震动反馈（安卓 WebView 支持就用，不支持就安静跳过） */
+  const buzz = () => {
+    try {
+      ;(navigator as Navigator & { vibrate?: (p: number) => boolean }).vibrate?.(12)
+    } catch {
+      /* 不支持就算了 */
+    }
+  }
+
+  /** 落位回弹：让卡片从手指松开的位置滑到新的排序位置（FLIP） */
+  const settle = (id: string, visualTop: number) => {
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = sectionRefs.current[id]
+        if (!el) return
+        const delta = visualTop - el.getBoundingClientRect().top
+        if (!isFinite(delta) || Math.abs(delta) < 1.5) return
+        el.style.transition = 'none'
+        el.style.transform = `translateY(${delta}px)`
+        el.style.zIndex = '50'
+        requestAnimationFrame(() => {
+          el.style.transition = 'transform 220ms cubic-bezier(.22,.61,.36,1)'
+          el.style.transform = ''
+          window.setTimeout(() => {
+            el.style.transition = ''
+            el.style.transform = ''
+            el.style.zIndex = ''
+          }, 260)
+        })
+      })
+    })
+  }
+
+  /**
+   * 拖动排序：手指按住 ⠿ 时整张卡片「浮起来」跟着手指走，
+   * 越过别的卡片时它们会滑开让位，抬手才真正改顺序并落位回弹。
+   */
   const onHandleDown = (id: string) => (e: React.PointerEvent) => {
     e.preventDefault()
+    const els = order.map((cid) => sectionRefs.current[cid])
+    if (els.some((el) => !el)) return
+    const rects = els.map((el) => el!.getBoundingClientRect())
+    const from = order.indexOf(id)
+    const gap = rects.length > 1 ? Math.max(0, rects[1].top - rects[0].bottom) : 0
     dragId.current = id
+    dragMeta.current = {
+      id,
+      from,
+      startY: e.clientY,
+      h: rects[from].height,
+      gap,
+      homes: rects.map((r) => r.top),
+    }
     setDragging(id)
+    setDrag({ id, from, to: from, dy: 0, h: rects[from].height, gap, homes: rects.map((r) => r.top) })
     ;(e.currentTarget as HTMLElement).setPointerCapture?.(e.pointerId)
+    buzz()
   }
   const onHandleMove = (e: React.PointerEvent) => {
-    const id = dragId.current
-    if (!id) return
-    const y = e.clientY
-    const from = order.indexOf(id)
-    let to = from
+    const meta = dragMeta.current
+    if (!meta) return
+    const dy = e.clientY - meta.startY
+    const myTop = meta.homes[meta.from] + dy
+    const myMid = myTop + meta.h / 2
+    // 数一数中点越过了几张卡片的原位置，就是落点下标
+    let to = 0
+    const heights = order.map((cid) => sectionRefs.current[cid]?.offsetHeight ?? 0)
     for (let i = 0; i < order.length; i++) {
-      const el = sectionRefs.current[order[i]]
-      if (!el) continue
-      const r = el.getBoundingClientRect()
-      if (y >= r.top && y <= r.bottom) {
-        to = i
-        break
-      }
+      if (i === meta.from) continue
+      if (myMid > meta.homes[i] + heights[i] / 2) to++
     }
-    if (to !== from) {
-      const next = order.filter((x) => x !== id)
-      next.splice(to, 0, id)
-      setOrder(next)
-      saveCatOrder(next)
-    }
+    const prev = drag?.to ?? meta.from
+    if (to !== prev) buzz()
+    setDrag({ id: meta.id, from: meta.from, to, dy, h: meta.h, gap: meta.gap, homes: meta.homes })
   }
   const endDrag = () => {
-    if (!dragId.current) return
+    const meta = dragMeta.current
+    const cur = drag
+    dragMeta.current = null
     dragId.current = null
     setDragging(null)
+    setDrag(null)
+    if (!meta || !cur) return
+    if (cur.to !== meta.from) {
+      // 手指松开时卡片「看」起来在哪儿，落位动画就从哪儿开始
+      const visualTop = meta.homes[meta.from] + cur.dy
+      const next = order.filter((x) => x !== meta.id)
+      next.splice(cur.to, 0, meta.id)
+      setOrder(next)
+      saveCatOrder(next)
+      settle(meta.id, visualTop)
+      buzz()
+    }
   }
 
   // 切换日期或当日记录变化时，从已存明细恢复勾选状态
@@ -457,20 +531,49 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
           </p>
         )}
 
-        {ordered.map((cat) => {
+        {ordered.map((cat, idx) => {
           const open = !!openCats[cat.id]
           const mine = custom.filter((it) => it.catId === cat.id)
           const count = cat.rewards.length + cat.penalties.length + mine.length
           const picked =
             [...cat.rewards, ...cat.penalties].filter((it) => it.name in selected).length +
             mine.filter((it) => it.name in selected).length
+          const isDragging = drag?.id === cat.id
+          let style: CSSProperties | undefined
+          let wrapCls = `card overflow-hidden ${dragging === cat.id ? 'shadow-pop ring-2 ring-brand/40' : ''}`
+          if (drag) {
+            if (isDragging) {
+              // 跟着手指浮起来的那张：微微放大 + 半透 + 大投影
+              style = {
+                position: 'relative',
+                zIndex: 50,
+                transform: `translateY(${drag.dy}px) scale(1.025)`,
+                opacity: 0.94,
+                boxShadow: '0 24px 56px rgba(67,49,111,.28)',
+                transition: 'none',
+                cursor: 'grabbing',
+              }
+              wrapCls = 'card overflow-hidden select-none shadow-drag ring-2 ring-brand/50'
+            } else {
+              // 被挤开的卡片滑走让位
+              let shift = 0
+              if (drag.from < drag.to && idx > drag.from && idx <= drag.to) shift = -(drag.h + drag.gap)
+              else if (drag.from > drag.to && idx >= drag.to && idx < drag.from) shift = drag.h + drag.gap
+              if (shift)
+                style = {
+                  transform: `translateY(${shift}px)`,
+                  transition: 'transform 180ms cubic-bezier(.22,.61,.36,1)',
+                }
+            }
+          }
           return (
             <section
               key={cat.id}
               ref={(el) => {
                 sectionRefs.current[cat.id] = el
               }}
-              className={`card overflow-hidden ${dragging === cat.id ? 'shadow-pop ring-2 ring-brand/40' : ''}`}
+              style={style}
+              className={wrapCls}
             >
               <div className="flex min-h-[56px] items-center gap-2 px-4 py-3 tb:gap-3 tb:px-5">
                 {manage && (
@@ -481,7 +584,11 @@ export default function ScorePage({ date, onDateChange, dayRow, onSave, onClear,
                     onPointerCancel={endDrag}
                     aria-label={`拖动排序 ${cat.name}`}
                     role="button"
-                    className="flex h-11 w-8 shrink-0 cursor-grab touch-none select-none items-center justify-center rounded-ctl bg-canvas text-lg text-mut active:cursor-grabbing"
+                    className={`flex h-11 w-8 shrink-0 touch-none select-none items-center justify-center rounded-ctl text-lg transition-colors duration-150 ${
+                      isDragging
+                        ? 'cursor-grabbing bg-brand text-white'
+                        : 'cursor-grab bg-canvas text-mut active:bg-brand-soft active:text-brand'
+                    }`}
                   >
                     ⠿
                   </span>
