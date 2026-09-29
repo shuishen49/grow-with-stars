@@ -61,8 +61,40 @@ body {
     }
   }
 
+  /* 弹窗入场：背景淡入 + 面板微微上浮 */
+  .tp-fade {
+    animation: tp-fade-in 180ms ease-out both;
+  }
+  .tp-pop {
+    animation: tp-pop-in 280ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  @keyframes tp-fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  @keyframes tp-pop-in {
+    from {
+      opacity: 0;
+      transform: translateY(24px) scale(0.96);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .reveal-cell {
+      animation: none;
+    }
+    .tp-fade,
+    .tp-pop {
       animation: none;
     }
   }
