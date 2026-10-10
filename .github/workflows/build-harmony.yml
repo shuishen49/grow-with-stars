@@ -64,12 +64,12 @@ jobs:
           "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap 2>&1 | tee "$RUNNER_TEMP/hvigor-build.log"
           code=${PIPESTATUS[0]}
           cat "$RUNNER_TEMP/hvigor-build.log"
-      if [ "$code" -ne 0 ]; then
-        echo 'Harmony build failed; last compiler lines:'
-        tail -n 40 "$RUNNER_TEMP/hvigor-build.log" | while IFS= read -r line; do
-          [ -n "$line" ] && echo "::error title=Hvigor::$line"
-        done
-      fi
+          if [ "$code" -ne 0 ]; then
+            echo 'Harmony build failed; last compiler lines:'
+            tail -n 40 "$RUNNER_TEMP/hvigor-build.log" | while IFS= read -r line; do
+              [ -n "$line" ] && echo "::error title=Hvigor::$line"
+            done
+          fi
           exit "$code"
 
       - name: Upload HAP
