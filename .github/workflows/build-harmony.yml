@@ -42,6 +42,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/harmony-tools"
           unzip -q /tmp/harmony-tools.zip -d "$RUNNER_TEMP/harmony-tools"
           echo "HARMONY_TOOLS_ROOT=$RUNNER_TEMP/harmony-tools" >> "$GITHUB_ENV"
+          SDK_HOME="$(find "$RUNNER_TEMP/harmony-tools" -maxdepth 4 -type d \( -name sdk -o -name Sdk \) | head -1)"
+          if [ -z "$SDK_HOME" ]; then
+            echo "::error::The command-line tools archive does not contain a HarmonyOS SDK. Use an archive that includes the SDK or add an SDK download step."
+            exit 1
+          fi
+          echo "DEVECO_SDK_HOME=$SDK_HOME" >> "$GITHUB_ENV"
+          echo "Harmony SDK: $SDK_HOME"
 
       - name: Install Harmony dependencies
         working-directory: harmony
@@ -51,6 +58,8 @@ jobs:
       - name: Build HAP
         working-directory: harmony
         run: |
+          echo "DEVECO_SDK_HOME=$DEVECO_SDK_HOME"
+          test -d "$DEVECO_SDK_HOME" || (echo 'DEVECO_SDK_HOME is missing.' && exit 1)
           "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap
 
       - name: Upload HAP
