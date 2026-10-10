@@ -45,11 +45,13 @@ jobs:
 
       - name: Install Harmony dependencies
         working-directory: harmony
-        run: "$HARMONY_TOOLS_ROOT/command-line-tools/bin/ohpm" install
+        run: |
+          "$HARMONY_TOOLS_ROOT/command-line-tools/bin/ohpm" install
 
       - name: Build HAP
         working-directory: harmony
-        run: "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap
+        run: |
+          "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap
 
       - name: Upload HAP
         uses: actions/upload-artifact@v4
