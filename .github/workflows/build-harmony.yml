@@ -1,0 +1,58 @@
+name: Build HarmonyOS package
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - 'harmony/**'
+      - 'src/**'
+      - 'public/**'
+      - 'package.json'
+      - 'package-lock.json'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Build React web assets
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+        run: |
+          npm ci
+          npm run build
+          rm -rf harmony/entry/src/main/resources/rawfile
+          mkdir -p harmony/entry/src/main/resources/rawfile
+          cp -R dist/. harmony/entry/src/main/resources/rawfile/
+          sed -i -e 's#href="/#href="#g' -e 's#src="/#src="#g' harmony/entry/src/main/resources/rawfile/index.html
+
+      - name: Download Harmony command-line tools
+        env:
+          HARMONY_TOOLS_URL: ${{ secrets.HARMONY_TOOLS_URL }}
+        run: |
+          test -n "$HARMONY_TOOLS_URL" || (echo 'Set HARMONY_TOOLS_URL in repository secrets.' && exit 1)
+          curl -fL "$HARMONY_TOOLS_URL" -o /tmp/harmony-tools.zip
+          mkdir -p "$RUNNER_TEMP/harmony-tools"
+          unzip -q /tmp/harmony-tools.zip -d "$RUNNER_TEMP/harmony-tools"
+          echo "HARMONY_TOOLS_ROOT=$RUNNER_TEMP/harmony-tools" >> "$GITHUB_ENV"
+
+      - name: Install Harmony dependencies
+        working-directory: harmony
+        run: "$HARMONY_TOOLS_ROOT/command-line-tools/bin/ohpm" install
+
+      - name: Build HAP
+        working-directory: harmony
+        run: "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap
+
+      - name: Upload HAP
+        uses: actions/upload-artifact@v4
+        with:
+          name: trickster-points-harmony-hap
+          path: harmony/entry/build/**/*.hap

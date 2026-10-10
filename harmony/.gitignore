@@ -1,0 +1,10 @@
+entry/build/
+build/
+.hvigor/
+node_modules/
+local.properties
+*.p12
+*.p12.json
+*.cer
+*.cer.json
+*.pwd
