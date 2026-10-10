@@ -60,10 +60,21 @@ jobs:
         run: |
           echo "DEVECO_SDK_HOME=$DEVECO_SDK_HOME"
           test -d "$DEVECO_SDK_HOME" || (echo 'DEVECO_SDK_HOME is missing.' && exit 1)
-          "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap
+          set +e
+          "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap 2>&1 | tee "$RUNNER_TEMP/hvigor-build.log"
+          code=${PIPESTATUS[0]}
+          cat "$RUNNER_TEMP/hvigor-build.log"
+          exit "$code"
 
       - name: Upload HAP
         uses: actions/upload-artifact@v4
         with:
           name: trickster-points-harmony-hap
           path: harmony/entry/build/**/*.hap
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trickster-points-harmony-build-log
+          path: ${{ runner.temp }}/hvigor-build.log
