@@ -26,3 +26,5 @@ hvigorw --mode module -p product=default -p module=entry@default -p buildMode=de
 `assembleHap` 生成 HAP；发布到应用市场通常还需要 release 构建和有效签名。
 
 构建工作流已启用手动触发和鸿蒙目录变更触发，并会在构建前检查 SDK 是否存在；失败时会上传 Hvigor 日志。
+
+CI diagnostics refresh: 2026-10-11T02:56:24
