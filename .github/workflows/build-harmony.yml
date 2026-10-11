@@ -79,6 +79,8 @@ jobs:
             awk 'BEGIN { block=0 } /BEGIN CERTIFICATE/ { block++ } { lines[block] = lines[block] $0 ORS } END { printf "%s", lines[block] }' "$RUNNER_TEMP/harmony-signing/release.cer" > "$RUNNER_TEMP/harmony-signing/release-leaf.cer"
             mv "$RUNNER_TEMP/harmony-signing/release-leaf.cer" "$RUNNER_TEMP/harmony-signing/release.cer"
           fi
+          openssl x509 -in "$RUNNER_TEMP/harmony-signing/release.cer" -outform DER -out "$RUNNER_TEMP/harmony-signing/release.der"
+          mv "$RUNNER_TEMP/harmony-signing/release.der" "$RUNNER_TEMP/harmony-signing/release.cer"
           keytool -list -v -keystore "$RUNNER_TEMP/harmony-signing/release.p12" -storepass "$HARMONY_STORE_PASSWORD" -alias "$HARMONY_KEY_ALIAS" > "$RUNNER_TEMP/harmony-signing/keytool.txt"
           grep -q 'Entry type: PrivateKeyEntry' "$RUNNER_TEMP/harmony-signing/keytool.txt" || (echo '::error::The P12 does not contain a private key entry.' && exit 1)
           grep -q 'Alias name: releaseKey' "$RUNNER_TEMP/harmony-signing/keytool.txt" || (echo '::error::The P12 alias is not releaseKey.' && exit 1)
