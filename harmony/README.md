@@ -23,6 +23,8 @@ GitHub Actions 可以负责构建和提供下载，但必须在仓库 Secrets �
 hvigorw --mode module -p product=default -p module=entry@default -p buildMode=release assembleHap
 
 GitHub Actions 使用 Release 签名构建。仓库 Secrets 需要配置 `HARMONY_KEYSTORE_B64`、`HARMONY_CERT_B64`、`HARMONY_PROFILE_B64`、`HARMONY_STORE_PASSWORD`、`HARMONY_KEY_PASSWORD` 和 `HARMONY_KEY_ALIAS`。
+
+签名构建验证：2026-10-11。
 ```
 
 `assembleHap` 生成 HAP；发布到应用市场通常还需要 release 构建和有效签名。
