@@ -4,7 +4,7 @@
 
 ## 当前配置
 
-- Bundle name：`com.shuishen49.growwithstars.harmony`
+- Bundle name：`com.huyongxin.growwithstars`
 - 应用名称：`好习惯积分`
 - 数据库：沿用主项目 Supabase 配置
 - 华为 CloudDB 和云函数：暂未接入
