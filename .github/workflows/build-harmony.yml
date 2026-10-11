@@ -55,13 +55,54 @@ jobs:
         run: |
           "$HARMONY_TOOLS_ROOT/command-line-tools/bin/ohpm" install
 
+      - name: Configure Harmony release signing
+        env:
+          HARMONY_KEYSTORE_B64: ${{ secrets.HARMONY_KEYSTORE_B64 }}
+          HARMONY_CERT_B64: ${{ secrets.HARMONY_CERT_B64 }}
+          HARMONY_PROFILE_B64: ${{ secrets.HARMONY_PROFILE_B64 }}
+          HARMONY_STORE_PASSWORD: ${{ secrets.HARMONY_STORE_PASSWORD }}
+          HARMONY_KEY_PASSWORD: ${{ secrets.HARMONY_KEY_PASSWORD }}
+          HARMONY_KEY_ALIAS: ${{ secrets.HARMONY_KEY_ALIAS }}
+        run: |
+          for required in HARMONY_KEYSTORE_B64 HARMONY_CERT_B64 HARMONY_PROFILE_B64 HARMONY_STORE_PASSWORD HARMONY_KEY_PASSWORD HARMONY_KEY_ALIAS; do
+            if [ -z "${!required}" ]; then
+              echo "::error::Missing GitHub Actions secret: $required"
+              exit 1
+            fi
+          done
+          mkdir -p "$RUNNER_TEMP/harmony-signing"
+          printf '%s' "$HARMONY_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/harmony-signing/release.p12"
+          printf '%s' "$HARMONY_CERT_B64" | base64 --decode > "$RUNNER_TEMP/harmony-signing/release.cer"
+          printf '%s' "$HARMONY_PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/harmony-signing/release.p7b"
+          export HARMONY_SIGNING_DIR="$RUNNER_TEMP/harmony-signing"
+          node <<'NODE'
+          const fs = require('fs');
+          const path = 'harmony/build-profile.json5';
+          const profile = JSON.parse(fs.readFileSync(path, 'utf8'));
+          profile.app.signingConfigs = [{
+            name: 'release',
+            type: 'HarmonyOS',
+            material: {
+              storePassword: process.env.HARMONY_STORE_PASSWORD,
+              certpath: `${process.env.HARMONY_SIGNING_DIR}/release.cer`,
+              keyAlias: process.env.HARMONY_KEY_ALIAS,
+              keyPassword: process.env.HARMONY_KEY_PASSWORD,
+              profile: `${process.env.HARMONY_SIGNING_DIR}/release.p7b`,
+              signAlg: 'SHA256withECDSA',
+              storeFile: `${process.env.HARMONY_SIGNING_DIR}/release.p12`
+            }
+          }];
+          profile.app.products = profile.app.products.map(product => ({ ...product, signingConfig: 'release' }));
+          fs.writeFileSync(path, JSON.stringify(profile, null, 2) + '\n');
+          NODE
+
       - name: Build HAP
         working-directory: harmony
         run: |
           echo "DEVECO_SDK_HOME=$DEVECO_SDK_HOME"
           test -d "$DEVECO_SDK_HOME" || (echo 'DEVECO_SDK_HOME is missing.' && exit 1)
           set +e
-          "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=debug assembleHap 2>&1 | tee "$RUNNER_TEMP/hvigor-build.log"
+          "$HARMONY_TOOLS_ROOT/command-line-tools/bin/hvigorw" --mode module -p product=default -p module=entry@default -p buildMode=release assembleHap 2>&1 | tee "$RUNNER_TEMP/hvigor-build.log"
           code=${PIPESTATUS[0]}
           cat "$RUNNER_TEMP/hvigor-build.log"
           if [ "$code" -ne 0 ]; then
