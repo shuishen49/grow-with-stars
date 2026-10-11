@@ -74,6 +74,10 @@ jobs:
           printf '%s' "$HARMONY_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/harmony-signing/release.p12"
           printf '%s' "$HARMONY_CERT_B64" | base64 --decode > "$RUNNER_TEMP/harmony-signing/release.cer"
           printf '%s' "$HARMONY_PROFILE_B64" | base64 --decode > "$RUNNER_TEMP/harmony-signing/release.p7b"
+          if grep -q 'BEGIN CERTIFICATE' "$RUNNER_TEMP/harmony-signing/release.cer"; then
+            awk 'BEGIN { block=0 } /BEGIN CERTIFICATE/ { block++ } { lines[block] = lines[block] $0 ORS } END { printf "%s", lines[block] }' "$RUNNER_TEMP/harmony-signing/release.cer" > "$RUNNER_TEMP/harmony-signing/release-leaf.cer"
+            mv "$RUNNER_TEMP/harmony-signing/release-leaf.cer" "$RUNNER_TEMP/harmony-signing/release.cer"
+          fi
           export HARMONY_SIGNING_DIR="$RUNNER_TEMP/harmony-signing"
           node <<'NODE'
           const fs = require('fs');
@@ -124,4 +128,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: trickster-points-harmony-build-log
-          path: ${{ runner.temp }}/hvigor-build.log
+          path: |
+            ${{ runner.temp }}/hvigor-build.log
+            harmony/.hvigor/outputs/build-logs/**
